@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/media_utils.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
 import '../chat/chat_screen.dart';
@@ -150,14 +151,21 @@ class FavoritesScreen extends StatelessWidget {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
+                                      // วิดีโอใช้รูปโปรไฟล์เป็นภาพปก
+                                      // (ยังไม่ได้ทำ thumbnail จากคลิปจริง)
                                       PetNetworkImage(
-                                        imageUrl:
-                                            dog['reelUrl'] ?? dog['imageUrl'],
+                                        imageUrl: isVideoSource(dog['reelUrl'])
+                                            ? dog['imageUrl']
+                                            : dog['reelUrl'] ?? dog['imageUrl'],
                                         fit: BoxFit.cover,
                                       ),
-                                      const Center(
-                                          child: Icon(Icons.play_circle_outline,
-                                              color: Colors.white70, size: 50)),
+                                      // ไอคอนเล่นขึ้นเฉพาะรีลที่เป็นวิดีโอจริง
+                                      if (isVideoSource(dog['reelUrl']))
+                                        const Center(
+                                            child: Icon(
+                                                Icons.play_circle_outline,
+                                                color: Colors.white70,
+                                                size: 50)),
                                     ],
                                   ),
                                 ),

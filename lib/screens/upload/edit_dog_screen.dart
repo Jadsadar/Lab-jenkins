@@ -191,7 +191,10 @@ class _EditDogScreenState extends State<EditDogScreen> {
             TextField(
                 controller: reelController,
                 decoration: InputDecoration(
-                    labelText: 'URL วิดีโอรีล (เว้นว่างได้ถ้าไม่มี)',
+                    labelText: 'วิดีโอ/รูปสำหรับหน้ารีล (เว้นว่างได้ถ้าไม่มี)',
+                    helperText:
+                        'เช่น assets/videos/dog1.mp4 หรือ URL รูปภาพ',
+                    helperMaxLines: 2,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)),
                     prefixIcon: const Icon(Icons.video_library))),

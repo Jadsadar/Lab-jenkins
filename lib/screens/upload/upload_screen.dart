@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
+import '../../utils/media_utils.dart';
 import '../../widgets/pet_avatar.dart';
 import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
@@ -214,8 +215,10 @@ class _UploadScreenState extends State<UploadScreen> {
             TextField(
                 controller: reelController,
                 decoration: InputDecoration(
-                    labelText:
-                        'URL วิดีโอรีล (ถ้ามีคลิปจะไปโผล่ในหน้ารีล)',
+                    labelText: 'วิดีโอ/รูปสำหรับหน้ารีล',
+                    helperText:
+                        'ใส่ไฟล์ในแอปได้ เช่น assets/videos/dog1.mp4 หรือจะใส่ URL รูปภาพก็ได้',
+                    helperMaxLines: 2,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)),
                     prefixIcon: const Icon(Icons.video_library))),
@@ -321,17 +324,23 @@ class _UploadScreenState extends State<UploadScreen> {
                                     ],
                                   ),
                                 ),
-                                if (dog['reelUrl'] != null &&
-                                    dog['reelUrl'].toString().isNotEmpty)
-                                  const Padding(
-                                    padding: EdgeInsets.only(bottom: 8.0),
+                                if (hasReelMedia(dog))
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.video_library,
-                                            size: 14, color: Colors.black54),
-                                        SizedBox(width: 4),
-                                        Text('มีวิดีโอรีล',
-                                            style: TextStyle(
+                                        Icon(
+                                            isVideoSource(dog['reelUrl'])
+                                                ? Icons.video_library
+                                                : Icons.photo_library,
+                                            size: 14,
+                                            color: Colors.black54),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                            isVideoSource(dog['reelUrl'])
+                                                ? 'มีวิดีโอรีล'
+                                                : 'มีรีลแบบภาพนิ่ง',
+                                            style: const TextStyle(
                                                 fontSize: 12,
                                                 color: Colors.black54)),
                                       ],

@@ -11,7 +11,7 @@ List<Map<String, dynamic>> initialDogs = [
     "temperament": "พูดเก่ง, พลังล้น, ตลก",
     "story": "น้องชอบเถียงมากๆ ครับ ใครหาเพื่อนคุยรับรองไม่เหงาแน่นอน",
     "imageUrl": "https://placedog.net/500/500?id=15",
-    "reelUrl": "https://placedog.net/500/800?id=15",
+    "reelUrl": "assets/videos/dog1.mp4",
     "status": "ยังไม่ถูกรับเลี้ยง",
     "engagementLikes": 245
   },
@@ -27,8 +27,7 @@ List<Map<String, dynamic>> initialDogs = [
     "story": "ตัวตึงประจำบ้าน ชอบนอนตากแอร์และกินขนมเป็นชีวิตจิตใจ",
     "imageUrl":
         "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&h=800&q=80",
+    "reelUrl": "assets/videos/dog2.mp4",
     "status": "ยังไม่ถูกรับเลี้ยง",
     "engagementLikes": 182
   },
@@ -45,10 +44,43 @@ List<Map<String, dynamic>> initialDogs = [
         "น้องหมูปิ้งขาสั้นแต่สู้ชีวิตครับ ชอบกินขนมมากๆ พลังงานล้นเหลือ ใครหาเพื่อนวิ่งเล่นตอนเย็นๆ รับไปได้เลยครับ",
     "imageUrl":
         "https://images.unsplash.com/photo-1597626133663-53df9633b799?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1597626133663-53df9633b799?auto=format&fit=crop&w=500&h=800&q=80",
+    "reelUrl": "assets/videos/dog3.mp4",
     "status": "ยังไม่ถูกรับเลี้ยง",
     "engagementLikes": 512
+  },
+  {
+    "id": "31",
+    "name": "ส้มจี๊ด",
+    "breed": "แมวส้ม",
+    "province": "กรุงเทพมหานคร",
+    "age": "1 ปี",
+    "gender": "ผู้",
+    "weight": "4",
+    "temperament": "ซน, กินเก่ง, ชอบป่วนของบนโต๊ะ",
+    "story":
+        "น้องส้มจี๊ดเป็นแมวส้มสายป่วนตัวจริง ชอบวิ่งเล่นทั้งวันและนอนตักเจ้าของตอนเย็น ใครรับไปรับรองบ้านไม่เงียบแน่นอนครับ",
+    "imageUrl":
+        "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=60",
+    "reelUrl": "assets/videos/cat1.mp4",
+    "status": "ยังไม่ถูกรับเลี้ยง",
+    "engagementLikes": 328
+  },
+  {
+    "id": "32",
+    "name": "นมเย็น",
+    "breed": "แมวขนสั้นไทย",
+    "province": "นนทบุรี",
+    "age": "8 เดือน",
+    "gender": "เมีย",
+    "weight": "3.2",
+    "temperament": "ขี้อ้อน, เสียงหวาน, ชอบนอนตักคน",
+    "story":
+        "น้องนมเย็นเป็นแมวขี้อ้อนมากค่ะ ชอบเดินตามเจ้าของไปทุกที่และนอนซบตักตลอดเวลา เหมาะกับคนอยู่คอนโดค่ะ",
+    "imageUrl":
+        "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=500&q=60",
+    "reelUrl": "assets/videos/cat2.mp4",
+    "status": "ยังไม่ถูกรับเลี้ยง",
+    "engagementLikes": 274
   },
   {
     "id": "20",

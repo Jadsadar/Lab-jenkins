@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../widgets/pet_avatar.dart';
-import '../../widgets/pet_network_image.dart';
+import '../../widgets/reel_player.dart';
 import '../detail/pet_detail_screen.dart';
 
 class ReelsScreen extends StatefulWidget {
@@ -37,9 +37,16 @@ class ReelsScreen extends StatefulWidget {
 class _ReelsScreenState extends State<ReelsScreen> {
   late PageController _pageController;
 
+  /// รีลที่กำลังแสดงอยู่ ใช้สั่งให้เล่นเฉพาะคลิปนี้คลิปเดียว
+  late int _currentPage;
+
+  /// true เมื่อเปิดหน้าอื่นทับอยู่ เพื่อหยุดวิดีโอไม่ให้เล่นค้างหลังฉาก
+  bool _isCoveredByOtherScreen = false;
+
   @override
   void initState() {
     super.initState();
+    _currentPage = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
   }
 
@@ -47,6 +54,24 @@ class _ReelsScreenState extends State<ReelsScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// เปิดหน้าโปรไฟล์ของน้อง โดยหยุดวิดีโอระหว่างที่ออกไปดูหน้าอื่น
+  Future<void> _openDetail(Map<String, dynamic> dog, bool isMyPost) async {
+    setState(() => _isCoveredByOtherScreen = true);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PetDetailScreen(
+          dog: dog,
+          isMyPost: isMyPost,
+          fromReels: true,
+          isFavorited: widget.likedDogs.any((d) => d['id'] == dog['id']),
+          onToggleFavorite: () => widget.onToggleFavorite(dog),
+        ),
+      ),
+    );
+    if (mounted) setState(() => _isCoveredByOtherScreen = false);
   }
 
   @override
@@ -74,6 +99,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
             controller: _pageController,
             scrollDirection: Axis.vertical,
             itemCount: widget.activeReels.length,
+            onPageChanged: (index) => setState(() => _currentPage = index),
             itemBuilder: (context, index) {
               final dog = widget.activeReels[index];
               final isReelLiked = widget.engagedReelIds.contains(dog['id']);
@@ -85,40 +111,27 @@ class _ReelsScreenState extends State<ReelsScreen> {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => PetDetailScreen(
-                                  dog: dog,
-                                  isMyPost: isMyPost,
-                                  fromReels: true,
-                                  isFavorited: widget.likedDogs
-                                      .any((d) => d['id'] == dog['id']),
-                                  onToggleFavorite: () =>
-                                      widget.onToggleFavorite(dog),
-                                ))),
-                    child: PetNetworkImage(
-                      imageUrl: dog['reelUrl'] ?? dog['imageUrl'],
-                      fit: BoxFit.cover,
-                      backgroundColor: Colors.black,
-                      iconColor: Colors.white24,
-                      iconSize: 96,
-                    ),
+                  ReelPlayer(
+                    source: dog['reelUrl'] ?? dog['imageUrl'],
+                    fallbackImageUrl: dog['imageUrl'],
+                    isActive: index == _currentPage && !_isCoveredByOtherScreen,
+                    onTapImage: () => _openDetail(dog, isMyPost),
                   ),
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.transparent, Colors.black87],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.6, 1.0],
+                  // ไล่เฉดดำด้านล่างให้อ่านตัวหนังสือออก
+                  // ครอบ IgnorePointer ไว้ เพื่อให้แตะทะลุไปสั่งเล่น/หยุดวิดีโอได้
+                  const IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.transparent, Colors.black87],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.6, 1.0],
+                        ),
                       ),
+                      child: SizedBox.expand(),
                     ),
                   ),
-                  const Center(
-                      child: Icon(Icons.play_arrow_rounded,
-                          color: Colors.white54, size: 100)),
 
                   // ข้อมูลซ้ายล่าง
                   Positioned(
@@ -126,18 +139,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
                     left: 16,
                     right: 80,
                     child: GestureDetector(
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => PetDetailScreen(
-                                    dog: dog,
-                                    isMyPost: isMyPost,
-                                    fromReels: true,
-                                    isFavorited: widget.likedDogs
-                                        .any((d) => d['id'] == dog['id']),
-                                    onToggleFavorite: () =>
-                                        widget.onToggleFavorite(dog),
-                                  ))),
+                      onTap: () => _openDetail(dog, isMyPost),
                       child: Container(
                         color: Colors.transparent,
                         child: Column(
@@ -187,18 +189,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
                           icon: Icons.person,
                           label: 'Profile',
                           color: Colors.white,
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => PetDetailScreen(
-                                        dog: dog,
-                                        isMyPost: isMyPost,
-                                        fromReels: true,
-                                        isFavorited: widget.likedDogs
-                                            .any((d) => d['id'] == dog['id']),
-                                        onToggleFavorite: () =>
-                                            widget.onToggleFavorite(dog),
-                                      ))),
+                          onTap: () => _openDetail(dog, isMyPost),
                         ),
                         if (!isMyPost) ...[
                           _buildActionItem(

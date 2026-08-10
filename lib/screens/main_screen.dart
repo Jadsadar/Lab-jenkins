@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
 import '../data/mock_dogs.dart';
+import '../utils/media_utils.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
 import 'profile/profile_screen.dart';
@@ -104,10 +105,7 @@ class _MainScreenState extends State<MainScreen> {
         .where((dog) {
           final isAvailable =
               (dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง') == 'ยังไม่ถูกรับเลี้ยง';
-          final hasReel = dog.containsKey('reelUrl') &&
-              dog['reelUrl'] != null &&
-              dog['reelUrl'].toString().trim().isNotEmpty;
-          return isAvailable && hasReel;
+          return isAvailable && hasReelMedia(dog);
         })
         .toList();
 
