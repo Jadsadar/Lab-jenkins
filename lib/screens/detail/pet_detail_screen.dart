@@ -1,0 +1,299 @@
+import 'package:flutter/material.dart';
+
+import '../../widgets/pet_network_image.dart';
+import '../chat/chat_inbox_screen.dart';
+import '../chat/chat_screen.dart';
+
+class PetDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> dog;
+  final bool isMyPost;
+  final bool fromReels;
+  final bool isFavorited;
+  final VoidCallback? onToggleFavorite;
+
+  const PetDetailScreen({
+    super.key,
+    required this.dog,
+    this.isMyPost = false,
+    this.fromReels = false,
+    this.isFavorited = false,
+    this.onToggleFavorite,
+  });
+
+  @override
+  State<PetDetailScreen> createState() => _PetDetailScreenState();
+}
+
+class _PetDetailScreenState extends State<PetDetailScreen> {
+  late bool _isFavorited;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorited = widget.isFavorited;
+  }
+
+  void _handleToggleFavorite() {
+    setState(() {
+      _isFavorited = !_isFavorited;
+    });
+    widget.onToggleFavorite?.call();
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_isFavorited
+            ? 'บันทึกเป็นสัตว์เลี้ยงที่ถูกใจแล้ว'
+            : 'เลิกถูกใจสัตว์เลี้ยงแล้ว'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white)),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PetNetworkImage(
+              imageUrl: widget.dog['imageUrl'],
+              width: double.infinity,
+              height: 400,
+              fit: BoxFit.cover,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(widget.dog['name'],
+                          style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFFF9E68))),
+                      Icon(
+                          widget.dog['gender'] == 'ผู้'
+                              ? Icons.male
+                              : Icons.female,
+                          size: 32,
+                          color: widget.dog['gender'] == 'ผู้'
+                              ? Colors.blue.shade300
+                              : Colors.pink.shade300),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: Color(0xFFFFB085)),
+                          const SizedBox(width: 8),
+                          Text(widget.dog['province'],
+                              style: TextStyle(
+                                  fontSize: 18, color: Colors.grey[700])),
+                        ],
+                      ),
+                      if (widget.dog['engagementLikes'] != null)
+                        Row(
+                          children: [
+                            const Icon(Icons.favorite,
+                                color: Colors.redAccent, size: 20),
+                            const SizedBox(width: 4),
+                            Text('${widget.dog['engagementLikes']} ไลก์รีล',
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black54)),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      _buildInfoCard(Icons.pets, 'สายพันธุ์',
+                          widget.dog['breed'] ?? 'ไม่ระบุ'),
+                      const SizedBox(width: 16),
+                      _buildInfoCard(Icons.cake, 'อายุ', widget.dog['age']),
+                      const SizedBox(width: 16),
+                      _buildInfoCard(Icons.monitor_weight, 'น้ำหนัก',
+                          '${widget.dog['weight'] ?? '-'} กก.'),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  const Text('ลักษณะนิสัย',
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children:
+                        (widget.dog['temperament'] as String? ?? 'ไม่ระบุ')
+                            .split(',')
+                            .map((temp) {
+                      return Chip(
+                        label: Text(temp.trim(),
+                            style: const TextStyle(
+                                color: Color(0xFFFF9E68),
+                                fontWeight: FontWeight.bold)),
+                        backgroundColor: const Color(0xFFFFF6F0),
+                        side: BorderSide.none,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text('เกี่ยวกับฉัน',
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87)),
+                  const SizedBox(height: 12),
+                  Text(widget.dog['story'] ?? 'ยังไม่มีข้อมูลเพิ่มเติม',
+                      style: const TextStyle(
+                          fontSize: 16, height: 1.5, color: Colors.black87)),
+                  const SizedBox(height: 40),
+
+                  // ===== ปุ่มด้านล่าง =====
+                  if (widget.isMyPost)
+                    // เจ้าของโพสต์ → กดดู inbox แชท
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ChatInboxScreen(dogName: widget.dog['name']),
+                          ),
+                        ),
+                        icon: const Icon(Icons.forum),
+                        label: const Text(
+                          'ดูแชทจากผู้สนใจรับเลี้ยง',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9E68),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30)),
+                          elevation: 2,
+                        ),
+                      ),
+                    )
+                  else
+                    // คนอื่น → กดสนใจรับเลี้ยง + ทักแชท
+                    Row(
+                      children: [
+                        // ปุ่ม สนใจ (Favorite)
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                                color: const Color(0xFFFF9E68), width: 2),
+                            shape: BoxShape.circle,
+                            color: _isFavorited
+                                ? const Color(0xFFFF9E68).withOpacity(0.1)
+                                : Colors.white,
+                          ),
+                          child: IconButton(
+                            iconSize: 32,
+                            icon: Icon(
+                              _isFavorited
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: _isFavorited
+                                  ? Colors.redAccent
+                                  : const Color(0xFFFF9E68),
+                            ),
+                            onPressed: _handleToggleFavorite,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // ปุ่ม ทักแชท
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatScreen(
+                                  dogName: widget.dog['name'],
+                                  isOwnerMode: false,
+                                ),
+                              ),
+                            ),
+                            icon: const Icon(Icons.chat),
+                            label: const Text(
+                              'ทักแชทเจ้าของ',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF9E68),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30)),
+                              elevation: 2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(IconData icon, String title, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+            color: const Color(0xFFFFF6F0),
+            borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, color: const Color(0xFFFFB085)),
+            const SizedBox(height: 8),
+            Text(title,
+                style: const TextStyle(color: Colors.black54, fontSize: 14)),
+            const SizedBox(height: 4),
+            Text(value,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Color(0xFFFF9E68)),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+}
