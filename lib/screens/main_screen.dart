@@ -101,13 +101,12 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> activeReels = [...allDogs, ...myPostedDogs]
-        .where((dog) {
-          final isAvailable =
-              (dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง') == 'ยังไม่ถูกรับเลี้ยง';
-          return isAvailable && hasReelMedia(dog);
-        })
-        .toList();
+    List<Map<String, dynamic>> activeReels =
+        [...allDogs, ...myPostedDogs].where((dog) {
+      final isAvailable =
+          (dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง') == 'ยังไม่ถูกรับเลี้ยง';
+      return isAvailable && hasReelMedia(dog);
+    }).toList();
 
     final List<Widget> screens = [
       DiscoverScreen(
@@ -172,9 +171,9 @@ class _MainScreenState extends State<MainScreen> {
           // ไอคอนโปรไฟล์ + badge แจ้งเตือน unread
           BottomNavigationBarItem(
             label: 'โปรไฟล์',
-            icon: StatefulBuilder(
-              builder: (context, setIconState) {
-                final unread = getTotalUnread();
+            icon: ValueListenableBuilder<int>(
+              valueListenable: unreadCounter,
+              builder: (context, unread, _) {
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [

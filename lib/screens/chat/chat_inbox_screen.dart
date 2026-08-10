@@ -54,8 +54,8 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               padding: const EdgeInsets.only(right: 16.0),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFF9E68),
                     borderRadius: BorderRadius.circular(20),
@@ -91,15 +91,14 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
           : ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: inboxChats.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, indent: 80),
+              separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
               itemBuilder: (context, index) {
                 final chat = inboxChats[index];
                 final unread = chat['unread'] as int;
 
                 return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   leading: Stack(
                     children: [
                       PetAvatar(
@@ -166,16 +165,10 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                     ),
                   ),
                   onTap: () {
-                    // อ่านแล้ว → reset unread
-                    setState(() {
-                      inboxChats[index]['unread'] = 0;
-                      // อัปเดต global data ด้วย
-                      final globalIndex = mockInboxChats.indexWhere(
-                          (c) => c['chatId'] == chat['chatId']);
-                      if (globalIndex != -1) {
-                        mockInboxChats[globalIndex]['unread'] = 0;
-                      }
-                    });
+                    // อ่านแล้ว → reset unread ที่ global (badge ทุกจอตามอัตโนมัติ)
+                    // inboxChats ถือ Map ก้อนเดียวกับ mockInboxChats
+                    // จึงเห็นค่าใหม่ทันที เหลือแค่สั่ง rebuild หน้านี้
+                    setState(() => markChatAsRead(chat['chatId']));
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -185,8 +178,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                           customerName: chat['customerName'],
                           customerAvatar: chat['customerAvatar'],
                           initialMessages:
-                              List<Map<String, dynamic>>.from(
-                                  chat['messages']),
+                              List<Map<String, dynamic>>.from(chat['messages']),
                           onNewMessage: (msg) {
                             // อัปเดต lastMessage เมื่อส่งข้อความใหม่
                             setState(() {

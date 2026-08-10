@@ -85,11 +85,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  /// เปิดกล่องข้อความ (badge อัปเดตเองผ่าน unreadCounter ไม่ต้อง setState ตอนกลับ)
+  void _openInbox() => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ChatInboxScreen(dogName: 'ลาเต้'),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    // นับ unread ทั้งหมด
-    final totalUnread = getTotalUnread();
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -101,47 +106,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         // badge แจ้งเตือนแชทที่ AppBar
         actions: [
-          if (totalUnread > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const ChatInboxScreen(dogName: 'ลาเต้'),
-                  ),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(Icons.notifications,
-                        color: Color(0xFFFF9E68), size: 28),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$totalUnread',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold),
+          ValueListenableBuilder<int>(
+            valueListenable: unreadCounter,
+            builder: (context, totalUnread, _) {
+              if (totalUnread == 0) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(right: 12.0),
+                child: GestureDetector(
+                  onTap: _openInbox,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(Icons.notifications,
+                          color: Color(0xFFFF9E68), size: 28),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: Colors.redAccent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$totalUnread',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -196,65 +200,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             // ===== แบนเนอร์แชทรอการตอบกลับ =====
-            if (totalUnread > 0) ...[
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const ChatInboxScreen(dogName: 'ลาเต้'),
-                  ),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF9E68).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: const Color(0xFFFF9E68).withOpacity(0.4),
-                        width: 1.5),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF9E68),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.chat,
-                            color: Colors.white, size: 20),
+            ValueListenableBuilder<int>(
+              valueListenable: unreadCounter,
+              builder: (context, totalUnread, _) {
+                if (totalUnread == 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: GestureDetector(
+                    onTap: _openInbox,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF9E68).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: const Color(0xFFFF9E68).withOpacity(0.4),
+                            width: 1.5),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'มีข้อความใหม่ $totalUnread ข้อความ',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Color(0xFFFF9E68)),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF9E68),
+                              shape: BoxShape.circle,
                             ),
-                            const Text(
-                              'มีคนสนใจรับเลี้ยงน้องของคุณ กดเพื่อดูแชท',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.black54),
+                            child: const Icon(Icons.chat,
+                                color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'มีข้อความใหม่ $totalUnread ข้อความ',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: Color(0xFFFF9E68)),
+                                ),
+                                const Text(
+                                  'มีคนสนใจรับเลี้ยงน้องของคุณ กดเพื่อดูแชท',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.black54),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const Icon(Icons.chevron_right,
+                              color: Color(0xFFFF9E68)),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right,
-                          color: Color(0xFFFF9E68)),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
+                );
+              },
+            ),
 
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16.0),
