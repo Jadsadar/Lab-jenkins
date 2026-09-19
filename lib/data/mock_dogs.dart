@@ -10,10 +10,8 @@ List<Map<String, dynamic>> initialDogs = [
     "weight": "22",
     "temperament": "พูดเก่ง, พลังล้น, ตลก",
     "story": "น้องชอบเถียงมากๆ ครับ ใครหาเพื่อนคุยรับรองไม่เหงาแน่นอน",
-    "imageUrl": "https://placedog.net/500/500?id=15",
-    "reelUrl": "assets/videos/dog1.mp4",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 245
+    "imageUrl": "https://placedog.net/500/500?id=15",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "16",
@@ -26,10 +24,8 @@ List<Map<String, dynamic>> initialDogs = [
     "temperament": "ขี้อ้อน, กินเก่ง, นอนกรน",
     "story": "ตัวตึงประจำบ้าน ชอบนอนตากแอร์และกินขนมเป็นชีวิตจิตใจ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&q=60",
-    "reelUrl": "assets/videos/dog2.mp4",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 182
+        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "19",
@@ -43,10 +39,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องหมูปิ้งขาสั้นแต่สู้ชีวิตครับ ชอบกินขนมมากๆ พลังงานล้นเหลือ ใครหาเพื่อนวิ่งเล่นตอนเย็นๆ รับไปได้เลยครับ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1597626133663-53df9633b799?auto=format&fit=crop&w=500&q=60",
-    "reelUrl": "assets/videos/dog3.mp4",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 512
+        "https://images.unsplash.com/photo-1597626133663-53df9633b799?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "31",
@@ -60,10 +54,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องส้มจี๊ดเป็นแมวส้มสายป่วนตัวจริง ชอบวิ่งเล่นทั้งวันและนอนตักเจ้าของตอนเย็น ใครรับไปรับรองบ้านไม่เงียบแน่นอนครับ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=60",
-    "reelUrl": "assets/videos/cat1.mp4",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 328
+        "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "32",
@@ -77,10 +69,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องนมเย็นเป็นแมวขี้อ้อนมากค่ะ ชอบเดินตามเจ้าของไปทุกที่และนอนซบตักตลอดเวลา เหมาะกับคนอยู่คอนโดค่ะ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=500&q=60",
-    "reelUrl": "assets/videos/cat2.mp4",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 274
+        "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "20",
@@ -93,10 +83,8 @@ List<Map<String, dynamic>> initialDogs = [
     "temperament": "เรียบร้อย, ชอบนอน, ติดเจ้าของ",
     "story":
         "น้องกะทิเป็นหมาคุณหนู ชอบนอนตากแอร์ ไม่ค่อยเห่ากวนใจ นิ่งมากๆ เหมาะกับคนอยู่คอนโดหรือพื้นที่จำกัดมากๆ ค่ะ",
-    "imageUrl": "https://placedog.net/500/500?id=20",
-    "reelUrl": "https://placedog.net/500/800?id=20",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 89
+    "imageUrl": "https://placedog.net/500/500?id=20",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "12",
@@ -109,10 +97,8 @@ List<Map<String, dynamic>> initialDogs = [
     "temperament": "ยิ้มเก่ง, ขนฟู, ขี้เล่นสุดๆ",
     "story":
         "น้องถังหูลู่เป็นหมาอารมณ์ดี ยิ้มหวานตลอดเวลา ชอบอากาศเย็นๆ และชอบวิ่งสวนสาธารณะสุดๆ ครับ",
-    "imageUrl": "https://placedog.net/500/500?id=12",
-    "reelUrl": "https://placedog.net/500/800?id=12",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 310
+    "imageUrl": "https://placedog.net/500/500?id=12",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "1",
@@ -127,8 +113,7 @@ List<Map<String, dynamic>> initialDogs = [
         "น้องโบ้เป็นหมาน้อยวัยกำลังซน ชอบเล่นลูกบอลและชอบวิ่งเล่นในสวนสาธารณะมากๆ กำลังหาบ้านที่มีพื้นที่ให้วิ่งเล่นครับ",
     "imageUrl":
         "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=500&q=60",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 140
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "21",
@@ -142,11 +127,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องขนมปังตัวเล็กแต่พลังเยอะ ชอบกระโดดเล่นกับเจ้าของทั้งวัน เหมาะกับคนที่อยากได้เพื่อนตัวจิ๋วไว้กอด",
     "imageUrl":
-        "https://images.unsplash.com/photo-1612195583950-b8fd34c87093?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1612195583950-b8fd34c87093?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 402
+        "https://images.unsplash.com/photo-1612195583950-b8fd34c87093?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "22",
@@ -160,11 +142,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องหมีน้อยจงรักภักดีมากครับ เหมาะกับบ้านที่มีพื้นที่กว้างและมีเวลาฝึกวินัยให้น้อง",
     "imageUrl":
-        "https://images.unsplash.com/photo-1561037404-61cd46aa615b?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1561037404-61cd46aa615b?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 115
+        "https://images.unsplash.com/photo-1561037404-61cd46aa615b?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "23",
@@ -178,11 +157,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องหวานใจชอบดมกลิ่นสำรวจไปทั่ว ถ้าได้ไปเดินป่าหรือสวนสาธารณะจะมีความสุขมากๆ ค่ะ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 260
+        "https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "24",
@@ -196,11 +172,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องโดนัทชอบนอนมากกว่าวิ่ง ใครอยากได้เพื่อนแบบสายชิลล์ น้องตัวนี้เลยครับ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1517849845537-4d257902861a?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1517849845537-4d257902861a?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 380
+        "https://images.unsplash.com/photo-1517849845537-4d257902861a?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
   {
     "id": "25",
@@ -214,11 +187,8 @@ List<Map<String, dynamic>> initialDogs = [
     "story":
         "น้องบุหงาดูเฉยๆแต่จริงๆแล้วขี้อ้อนมาก ชอบนอนตากแอร์และเดินเล่นยามเย็นค่ะ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 99
+        "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   },
 ];
 
@@ -235,10 +205,7 @@ List<Map<String, dynamic>> initialMyPostedDogs = [
     "temperament": "ขี้อ้อน, พลังล้นเหลือ",
     "story": "กำลังหาบ้านที่พร้อมดูแลน้องลาเต้ครับ",
     "imageUrl":
-        "https://images.unsplash.com/photo-1591160690555-5debfba289f0?auto=format&fit=crop&w=500&q=60",
-    "reelUrl":
-        "https://images.unsplash.com/photo-1591160690555-5debfba289f0?auto=format&fit=crop&w=500&h=800&q=80",
-    "status": "ยังไม่ถูกรับเลี้ยง",
-    "engagementLikes": 45
+        "https://images.unsplash.com/photo-1591160690555-5debfba289f0?auto=format&fit=crop&w=500&q=60",
+    "status": "ยังไม่ถูกรับเลี้ยง"
   }
 ];

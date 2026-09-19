@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
-import '../../utils/media_utils.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
@@ -37,7 +37,6 @@ class _UploadScreenState extends State<UploadScreen> {
   final TextEditingController temperamentController = TextEditingController();
   final TextEditingController storyController = TextEditingController();
   final TextEditingController imageController = TextEditingController();
-  final TextEditingController reelController = TextEditingController();
 
   String selectedProvince = 'กรุงเทพมหานคร';
   String selectedGender = 'ผู้';
@@ -48,8 +47,11 @@ class _UploadScreenState extends State<UploadScreen> {
 
   void submitForm() {
     if (nameController.text.isNotEmpty && selectedAge != null) {
+      final currentUser = AuthService.instance.currentUser;
       final newDog = {
         "id": DateTime.now().millisecondsSinceEpoch.toString(),
+        "ownerId": currentUser?.uid,
+        "ownerName": currentUser?.displayName ?? currentUserProfile['name'],
         "name": nameController.text,
         "breed":
             breedController.text.isEmpty ? "พันทาง" : breedController.text,
@@ -66,9 +68,7 @@ class _UploadScreenState extends State<UploadScreen> {
         "imageUrl": imageController.text.isNotEmpty
             ? imageController.text
             : "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=400&q=60",
-        "reelUrl": reelController.text,
         "status": "ยังไม่ถูกรับเลี้ยง",
-        "engagementLikes": 0 // เพิ่มค่าเริ่มต้นให้กับโพสต์ใหม่
       };
       widget.onAddDog(newDog);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -79,7 +79,6 @@ class _UploadScreenState extends State<UploadScreen> {
       temperamentController.clear();
       storyController.clear();
       imageController.clear();
-      reelController.clear();
       setState(() => selectedAge = null);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,7 +97,7 @@ class _UploadScreenState extends State<UploadScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('ลงประกาศ / อัปโหลดรีล',
+        title: const Text('ลงประกาศ',
             style: TextStyle(
                 fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
         backgroundColor: Colors.white,
@@ -211,17 +210,6 @@ class _UploadScreenState extends State<UploadScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)),
                     prefixIcon: const Icon(Icons.image))),
-            const SizedBox(height: 16),
-            TextField(
-                controller: reelController,
-                decoration: InputDecoration(
-                    labelText: 'วิดีโอ/รูปสำหรับหน้ารีล',
-                    helperText:
-                        'ใส่ไฟล์ในแอปได้ เช่น assets/videos/dog1.mp4 หรือจะใส่ URL รูปภาพก็ได้',
-                    helperMaxLines: 2,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    prefixIcon: const Icon(Icons.video_library))),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: submitForm,
@@ -240,7 +228,7 @@ class _UploadScreenState extends State<UploadScreen> {
             const SizedBox(height: 32),
             const Divider(color: Colors.black12),
             const SizedBox(height: 16),
-            const Text('ประกาศ / รีล ของฉัน',
+            const Text('ประกาศของฉัน',
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -324,28 +312,6 @@ class _UploadScreenState extends State<UploadScreen> {
                                     ],
                                   ),
                                 ),
-                                if (hasReelMedia(dog))
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                            isVideoSource(dog['reelUrl'])
-                                                ? Icons.video_library
-                                                : Icons.photo_library,
-                                            size: 14,
-                                            color: Colors.black54),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                            isVideoSource(dog['reelUrl'])
-                                                ? 'มีวิดีโอรีล'
-                                                : 'มีรีลแบบภาพนิ่ง',
-                                            style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.black54)),
-                                      ],
-                                    ),
-                                  ),
                                 const Divider(color: Colors.white),
                                 Row(
                                   mainAxisAlignment:

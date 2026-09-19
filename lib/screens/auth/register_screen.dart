@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
+import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,19 +11,28 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final TextEditingController nameController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
   String selectedProvince = 'กรุงเทพมหานคร';
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
-  void handleRegister() {
-    if (nameController.text.isEmpty ||
+  Future<void> handleRegister() async {
+    final username = usernameController.text.trim();
+    if (username.isEmpty ||
         emailController.text.isEmpty ||
         passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')));
+      return;
+    }
+    if (username.contains('@') || username.contains(' ')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ชื่อผู้ใช้ห้ามมีเว้นวรรคหรือเครื่องหมาย @')));
       return;
     }
     if (passwordController.text != confirmPasswordController.text) {
@@ -30,12 +40,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')));
       return;
     }
-    currentUserProfile['name'] = nameController.text;
-    currentUserProfile['email'] = emailController.text;
-    currentUserProfile['province'] = selectedProvince;
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ')));
-    Navigator.pop(context);
+
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.instance.register(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        username: username,
+      );
+      currentUserProfile['email'] = emailController.text.trim();
+      currentUserProfile['province'] = selectedProvince;
+      // สมัครเสร็จแล้ว Firebase auto sign-in ให้ ต้อง signOut เองเพื่อบังคับให้ไปล็อกอินใหม่
+      await AuthService.instance.signOut();
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on AuthFailure catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -62,32 +96,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: Color(0xFFFF9E68))),
             const SizedBox(height: 16),
             TextField(
-                controller: nameController,
+                controller: usernameController,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
-                    labelText: 'ชื่อผู้ใช้ / ชื่อเล่น *',
+                    labelText: 'Username (สำหรับใช้ล็อกอิน) *',
+                    helperText: 'ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
             TextField(
                 controller: emailController,
+                enabled: !_isLoading,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                    labelText: 'อีเมล / เบอร์โทรศัพท์ *',
+                    labelText: 'อีเมล *',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
             TextField(
                 controller: passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
-                    labelText: 'รหัสผ่าน *',
+                    labelText: 'รหัสผ่าน (อย่างน้อย 6 ตัวอักษร) *',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                    ),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
             TextField(
                 controller: confirmPasswordController,
-                obscureText: true,
+                obscureText: _obscureConfirmPassword,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
                     labelText: 'ยืนยันรหัสผ่าน *',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () => setState(() =>
+                          _obscureConfirmPassword = !_obscureConfirmPassword),
+                    ),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 24),
@@ -106,11 +160,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               items: thaiProvinces
                   .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                   .toList(),
-              onChanged: (val) => setState(() => selectedProvince = val!),
+              onChanged: _isLoading
+                  ? null
+                  : (val) => setState(() => selectedProvince = val!),
             ),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: handleRegister,
+              onPressed: _isLoading ? null : handleRegister,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF9E68),
                 foregroundColor: Colors.white,
@@ -119,9 +175,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(30)),
                 elevation: 2,
               ),
-              child: const Text('สมัครสมาชิก',
-                  style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.5),
+                    )
+                  : const Text('สมัครสมาชิก',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

@@ -1,23 +1,22 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
+  final String chatId;
   final String dogName;
-  final bool isOwnerMode;
-  final String customerName;
-  final String customerAvatar;
-  final List<Map<String, dynamic>> initialMessages;
-  final Function(String)? onNewMessage;
+  final String otherUserName;
+  final String otherUserAvatar;
 
   const ChatScreen({
     super.key,
+    required this.chatId,
     required this.dogName,
-    this.isOwnerMode = false,
-    this.customerName = '',
-    this.customerAvatar = '',
-    this.initialMessages = const [],
-    this.onNewMessage,
+    required this.otherUserName,
+    this.otherUserAvatar = '',
   });
 
   @override
@@ -27,29 +26,12 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  late List<Map<String, dynamic>> _messages;
+  bool _sending = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialMessages.isNotEmpty) {
-      _messages = List<Map<String, dynamic>>.from(widget.initialMessages);
-    } else if (widget.isOwnerMode) {
-      _messages = [
-        {
-          "text":
-              "สวัสดีครับ สนใจรับเลี้ยงน้อง${widget.dogName} ครับ น้องยังว่างอยู่ไหมครับ?",
-          "isMe": false
-        },
-      ];
-    } else {
-      _messages = [
-        {
-          "text": "สวัสดีครับ สนใจรับเลี้ยงน้องทักสอบถามได้เลยนะครับ/คะ 😊",
-          "isMe": false
-        },
-      ];
-    }
+    ChatService.instance.markRead(widget.chatId);
   }
 
   void _scrollToBottom() {
@@ -64,48 +46,32 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _sendMessage() {
-    if (_msgController.text.trim().isEmpty) return;
+  Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
-    setState(() {
-      _messages.add({"text": text, "isMe": true});
-    });
-    widget.onNewMessage?.call(text);
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
     _msgController.clear();
     FocusScope.of(context).unfocus();
-    _scrollToBottom();
-
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _messages.add({
-            "text": widget.isOwnerMode
-                ? "ขอบคุณที่สนใจครับ น้อง${widget.dogName}ยังว่างอยู่นะครับ 🐾 สะดวกมาดูน้องวันไหนดีครับ?"
-                : "ยินดีที่ได้รู้จักครับ สะดวกให้ไปดูน้องได้เลยนะครับ ติดต่อนัดหมายได้เลยครับ",
-            "isMe": false
-          });
-        });
-        _scrollToBottom();
-      }
-    });
+    try {
+      await ChatService.instance.sendMessage(widget.chatId, text);
+      _scrollToBottom();
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String appBarTitle = widget.isOwnerMode
-        ? (widget.customerName.isNotEmpty
-            ? widget.customerName
-            : 'ผู้สนใจรับเลี้ยง')
-        : 'เจ้าของ${widget.dogName}';
+    final myUid = AuthService.instance.currentUser!.uid;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF6F0),
       appBar: AppBar(
         title: Row(
           children: [
-            widget.customerAvatar.isNotEmpty
+            widget.otherUserAvatar.isNotEmpty
                 ? PetAvatar(
-                    imageUrl: widget.customerAvatar,
+                    imageUrl: widget.otherUserAvatar,
                     radius: 20,
                     icon: Icons.person,
                     backgroundColor: Colors.white,
@@ -122,7 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    appBarTitle,
+                    widget.otherUserName,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 16),
                     overflow: TextOverflow.ellipsis,
@@ -143,50 +109,72 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // ส่วนแสดงข้อความ
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isMe = msg['isMe'] as bool;
-                return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe ? const Color(0xFFFF9E68) : Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isMe ? 20 : 0),
-                        bottomRight: Radius.circular(isMe ? 0 : 20),
-                      ),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 4)
-                      ],
-                    ),
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: ChatService.instance.messagesStream(widget.chatId),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(
+                      child: Text('โหลดข้อความไม่สำเร็จ ลองใหม่อีกครั้ง'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final messages = snapshot.data!.docs;
+                if (messages.isEmpty) {
+                  return Center(
                     child: Text(
-                      msg['text'],
-                      style: TextStyle(
-                          color: isMe ? Colors.white : Colors.black87,
-                          fontSize: 16),
+                      'ทักทายน้อง${widget.dogName}กันเลย!',
+                      style: const TextStyle(color: Colors.black38),
                     ),
-                  ),
+                  );
+                }
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => _scrollToBottom());
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final data = messages[index].data();
+                    final isMe = data['senderId'] == myUid;
+                    return Align(
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              isMe ? const Color(0xFFFF9E68) : Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft: Radius.circular(isMe ? 20 : 0),
+                            bottomRight: Radius.circular(isMe ? 0 : 20),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black12, blurRadius: 4)
+                          ],
+                        ),
+                        child: Text(
+                          data['text'] as String? ?? '',
+                          style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black87,
+                              fontSize: 16),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
           ),
-
-          // กล่องพิมพ์ข้อความ
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -204,6 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _msgController,
+                    enabled: !_sending,
                     decoration: InputDecoration(
                       hintText: 'พิมพ์ข้อความ...',
                       border: OutlineInputBorder(

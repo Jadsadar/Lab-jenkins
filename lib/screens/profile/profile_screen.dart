@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
+import '../../services/auth_service.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../chat/chat_inbox_screen.dart';
 
@@ -24,27 +28,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String currentHomeType = currentUserProfile['homeType'];
   String currentRole = currentUserProfile['role'];
 
-  final List<String> homeTypes = [
-    'บ้านเดี่ยว',
-    'ทาวน์โฮม/ทาวน์เฮ้าส์',
-    'คอนโดมิเนียม',
-    'อพาร์ทเม้นท์/ห้องเช่า'
-  ];
-  final List<String> roles = [
-    'ฉันอยากหาหมาไปเลี้ยง (Adopter)',
-    'ฉันมีน้องหมาอยากหาบ้านให้ (Owner/Shelter)'
-  ];
-
-  final List<String> availableTraits = [
-    'สายลุย',
-    'สายชิล',
-    'ชอบอยู่บ้าน',
-    'ชอบวิ่งเล่น',
-    'รักเด็ก',
-    'ติดคน',
-    'รักความสงบ',
-    'สายสปอร์ต'
-  ];
   late List<String> selectedTraits;
 
   @override
@@ -85,11 +68,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  /// เปิดกล่องข้อความ (badge อัปเดตเองผ่าน unreadCounter ไม่ต้อง setState ตอนกลับ)
+  Future<void> _pickAndUploadImage() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      imageQuality: 85,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    try {
+      final url = await AuthService.instance
+          .uploadProfileImage(bytes, contentType: file.mimeType ?? 'image/jpeg');
+      if (!mounted) return;
+      setState(() => currentUserProfile['profileImageUrl'] = url);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อัปเดตรูปโปรไฟล์แล้ว')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    }
+  }
+
+  void _copyFacebookName() {
+    final name = fbController.text.trim();
+    if (name.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: name));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('คัดลอกชื่อ Facebook แล้ว'),
+        duration: Duration(seconds: 1)));
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ออกจากระบบ'),
+        content: const Text('ต้องการออกจากระบบใช่หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ออกจากระบบ',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await AuthService.instance.signOut();
+      // AuthGate จะสลับกลับไปหน้า LoginScreen ให้อัตโนมัติ
+    }
+  }
+
+  /// เปิดกล่องข้อความทั้งหมดของฉัน (ทุกสัตว์เลี้ยง)
   void _openInbox() => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const ChatInboxScreen(dogName: 'ลาเต้'),
+          builder: (context) => const ChatInboxScreen(),
         ),
       );
 
@@ -106,9 +145,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         // badge แจ้งเตือนแชทที่ AppBar
         actions: [
-          ValueListenableBuilder<int>(
-            valueListenable: unreadCounter,
-            builder: (context, totalUnread, _) {
+          StreamBuilder<int>(
+            stream: ChatService.instance.unreadChatCountStream(),
+            builder: (context, snapshot) {
+              final totalUnread = snapshot.data ?? 0;
               if (totalUnread == 0) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(right: 12.0),
@@ -146,6 +186,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
             },
           ),
+          IconButton(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout, color: Color(0xFFFF9E68)),
+            tooltip: 'ออกจากระบบ',
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -163,11 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 if (_isEditing)
                   GestureDetector(
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('กำลังเปิดแกลเลอรี่เพื่อเลือกรูปภาพ...'),
-                            duration: Duration(seconds: 2))),
+                    onTap: _pickAndUploadImage,
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -200,9 +241,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             // ===== แบนเนอร์แชทรอการตอบกลับ =====
-            ValueListenableBuilder<int>(
-              valueListenable: unreadCounter,
-              builder: (context, totalUnread, _) {
+            StreamBuilder<int>(
+              stream: ChatService.instance.unreadChatCountStream(),
+              builder: (context, snapshot) {
+                final totalUnread = snapshot.data ?? 0;
                 if (totalUnread == 0) return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -341,8 +383,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               controller: fbController,
               enabled: _isEditing,
               decoration: InputDecoration(
-                  labelText: 'ลิงก์ Facebook',
-                  prefixIcon: const Icon(Icons.link),
+                  labelText: 'ชื่อ Facebook',
+                  prefixIcon: const Icon(Icons.facebook),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.copy, size: 20),
+                    tooltip: 'คัดลอกชื่อ Facebook',
+                    onPressed: _copyFacebookName,
+                  ),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
             ),
@@ -384,7 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   labelText: 'บทบาทหลักในการเข้าใช้แอป',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
-              items: roles
+              items: userRoles
                   .map((r) => DropdownMenuItem(
                       value: r,
                       child: Text(r, style: const TextStyle(fontSize: 13))))

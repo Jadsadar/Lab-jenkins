@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../data/mock_dogs.dart';
-import '../utils/media_utils.dart';
+import '../services/chat_service.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
 import 'profile/profile_screen.dart';
-import 'reels/reels_screen.dart';
 import 'upload/upload_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -26,9 +24,6 @@ class _MainScreenState extends State<MainScreen> {
 
   List<Map<String, dynamic>> likedDogs = [];
   List<Map<String, dynamic>> passedDogs = [];
-  List<Map<String, dynamic>> savedReels = [];
-  Set<String> engagedReelIds =
-      {}; // เก็บ ID ของรีลที่ผู้ใช้เคยกด Like เพื่อเป็นยอดเอนเกจเมนต์
 
   void onLike(Map<String, dynamic> dog) => setState(() {
         likedDogs.add(dog);
@@ -53,7 +48,6 @@ class _MainScreenState extends State<MainScreen> {
 
   void onDeleteDog(Map<String, dynamic> dog) => setState(() {
         myPostedDogs.remove(dog);
-        savedReels.removeWhere((d) => d['id'] == dog['id']);
       });
 
   void onEditDog(Map<String, dynamic> updatedDog) => setState(() {
@@ -68,18 +62,6 @@ class _MainScreenState extends State<MainScreen> {
         if (index != -1) myPostedDogs[index]['status'] = newStatus;
       });
 
-  // ฟังก์ชันสำหรับการกดถูกใจรีล (Engagement)
-  void onLikeReel(Map<String, dynamic> dog) => setState(() {
-        final dogId = dog['id'];
-        if (engagedReelIds.contains(dogId)) {
-          engagedReelIds.remove(dogId);
-          dog['engagementLikes'] = (dog['engagementLikes'] ?? 1) - 1;
-        } else {
-          engagedReelIds.add(dogId);
-          dog['engagementLikes'] = (dog['engagementLikes'] ?? 0) + 1;
-        }
-      });
-
   // ฟังก์ชันสำหรับการกดสนใจรับเลี้ยง
   void onToggleFavoriteDog(Map<String, dynamic> dog) => setState(() {
         final exists = likedDogs.any((d) => d['id'] == dog['id']);
@@ -91,23 +73,8 @@ class _MainScreenState extends State<MainScreen> {
         }
       });
 
-  void onToggleSaveReel(Map<String, dynamic> dog) => setState(() {
-        if (savedReels.any((d) => d['id'] == dog['id'])) {
-          savedReels.removeWhere((d) => d['id'] == dog['id']);
-        } else {
-          savedReels.add(dog);
-        }
-      });
-
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> activeReels =
-        [...allDogs, ...myPostedDogs].where((dog) {
-      final isAvailable =
-          (dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง') == 'ยังไม่ถูกรับเลี้ยง';
-      return isAvailable && hasReelMedia(dog);
-    }).toList();
-
     final List<Widget> screens = [
       DiscoverScreen(
         dogs: allDogs,
@@ -118,23 +85,8 @@ class _MainScreenState extends State<MainScreen> {
         likedDogs: likedDogs,
         onToggleFavorite: onToggleFavoriteDog,
       ),
-      ReelsScreen(
-        activeReels: activeReels,
-        engagedReelIds: engagedReelIds,
-        savedReels: savedReels,
-        onLikeReel: onLikeReel,
-        onToggleSave: onToggleSaveReel,
-        myPostedDogs: myPostedDogs,
-        onGoToUpload: () => setState(() => _selectedIndex = 3),
-        likedDogs: likedDogs,
-        onToggleFavorite: onToggleFavoriteDog,
-      ),
       FavoritesScreen(
         likedDogs: likedDogs,
-        savedReels: savedReels,
-        onToggleSaveReel: onToggleSaveReel,
-        engagedReelIds: engagedReelIds,
-        onLikeReel: onLikeReel,
         myPostedDogs: myPostedDogs,
         onToggleFavorite: onToggleFavoriteDog,
       ),
@@ -163,17 +115,16 @@ class _MainScreenState extends State<MainScreen> {
           const BottomNavigationBarItem(
               icon: Icon(Icons.search), label: 'ค้นหา'),
           const BottomNavigationBarItem(
-              icon: Icon(Icons.video_library), label: 'รีล'),
-          const BottomNavigationBarItem(
               icon: Icon(Icons.favorite), label: 'ถูกใจ'),
           const BottomNavigationBarItem(
               icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
           // ไอคอนโปรไฟล์ + badge แจ้งเตือน unread
           BottomNavigationBarItem(
             label: 'โปรไฟล์',
-            icon: ValueListenableBuilder<int>(
-              valueListenable: unreadCounter,
-              builder: (context, unread, _) {
+            icon: StreamBuilder<int>(
+              stream: ChatService.instance.unreadChatCountStream(),
+              builder: (context, snapshot) {
+                final unread = snapshot.data ?? 0;
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [

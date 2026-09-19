@@ -20,7 +20,6 @@ class _EditDogScreenState extends State<EditDogScreen> {
   late TextEditingController temperamentController;
   late TextEditingController storyController;
   late TextEditingController imageController;
-  late TextEditingController reelController;
 
   late String selectedProvince;
   late String selectedGender;
@@ -37,8 +36,6 @@ class _EditDogScreenState extends State<EditDogScreen> {
         TextEditingController(text: widget.dog['temperament']);
     storyController = TextEditingController(text: widget.dog['story']);
     imageController = TextEditingController(text: widget.dog['imageUrl']);
-    reelController =
-        TextEditingController(text: widget.dog['reelUrl'] ?? '');
     selectedProvince = thaiProvinces.contains(widget.dog['province'])
         ? widget.dog['province']
         : 'กรุงเทพมหานคร';
@@ -66,9 +63,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
         "imageUrl": imageController.text.isNotEmpty
             ? imageController.text
             : "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=400&q=60",
-        "reelUrl": reelController.text,
         "status": widget.dog['status'],
-        "engagementLikes": widget.dog['engagementLikes'] ?? 0,
       };
       widget.onSave(updatedDog);
       Navigator.pop(context);
@@ -187,17 +182,6 @@ class _EditDogScreenState extends State<EditDogScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)),
                     prefixIcon: const Icon(Icons.image))),
-            const SizedBox(height: 16),
-            TextField(
-                controller: reelController,
-                decoration: InputDecoration(
-                    labelText: 'วิดีโอ/รูปสำหรับหน้ารีล (เว้นว่างได้ถ้าไม่มี)',
-                    helperText:
-                        'เช่น assets/videos/dog1.mp4 หรือ URL รูปภาพ',
-                    helperMaxLines: 2,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    prefixIcon: const Icon(Icons.video_library))),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: saveChanges,

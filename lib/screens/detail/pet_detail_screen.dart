@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/pet_network_image.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
@@ -7,7 +9,6 @@ import '../chat/chat_screen.dart';
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
   final bool isMyPost;
-  final bool fromReels;
   final bool isFavorited;
   final VoidCallback? onToggleFavorite;
 
@@ -15,7 +16,6 @@ class PetDetailScreen extends StatefulWidget {
     super.key,
     required this.dog,
     this.isMyPost = false,
-    this.fromReels = false,
     this.isFavorited = false,
     this.onToggleFavorite,
   });
@@ -26,11 +26,49 @@ class PetDetailScreen extends StatefulWidget {
 
 class _PetDetailScreenState extends State<PetDetailScreen> {
   late bool _isFavorited;
+  bool _isOpeningChat = false;
 
   @override
   void initState() {
     super.initState();
     _isFavorited = widget.isFavorited;
+  }
+
+  Future<void> _handleChatWithOwner() async {
+    final ownerId = widget.dog['ownerId'] as String?;
+    final myUid = AuthService.instance.currentUser?.uid;
+    if (ownerId == null || ownerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('น้องตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+      return;
+    }
+    if (ownerId == myUid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+      return;
+    }
+
+    setState(() => _isOpeningChat = true);
+    try {
+      final chatId = await ChatService.instance.ensureChat(
+        otherUserId: ownerId,
+        otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+        dogName: widget.dog['name'],
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            chatId: chatId,
+            dogName: widget.dog['name'],
+            otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isOpeningChat = false);
+    }
   }
 
   void _handleToggleFavorite() {
@@ -94,31 +132,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on,
-                              color: Color(0xFFFFB085)),
-                          const SizedBox(width: 8),
-                          Text(widget.dog['province'],
-                              style: TextStyle(
-                                  fontSize: 18, color: Colors.grey[700])),
-                        ],
-                      ),
-                      if (widget.dog['engagementLikes'] != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.favorite,
-                                color: Colors.redAccent, size: 20),
-                            const SizedBox(width: 4),
-                            Text('${widget.dog['engagementLikes']} ไลก์รีล',
-                                style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black54)),
-                          ],
-                        ),
+                      const Icon(Icons.location_on,
+                          color: Color(0xFFFFB085)),
+                      const SizedBox(width: 8),
+                      Text(widget.dog['province'],
+                          style: TextStyle(
+                              fontSize: 18, color: Colors.grey[700])),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -231,16 +251,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         // ปุ่ม ทักแชท
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChatScreen(
-                                  dogName: widget.dog['name'],
-                                  isOwnerMode: false,
-                                ),
-                              ),
-                            ),
-                            icon: const Icon(Icons.chat),
+                            onPressed:
+                                _isOpeningChat ? null : _handleChatWithOwner,
+                            icon: _isOpeningChat
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.chat),
                             label: const Text(
                               'ทักแชทเจ้าของ',
                               style: TextStyle(
