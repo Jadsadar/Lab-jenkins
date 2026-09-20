@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
+import '../../widgets/pet_image_picker.dart';
+import '../../widgets/province_picker.dart';
 import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
 
@@ -36,17 +41,31 @@ class _UploadScreenState extends State<UploadScreen> {
   final TextEditingController weightController = TextEditingController();
   final TextEditingController temperamentController = TextEditingController();
   final TextEditingController storyController = TextEditingController();
-  final TextEditingController imageController = TextEditingController();
 
   String selectedProvince = 'กรุงเทพมหานคร';
   String selectedGender = 'ผู้';
   String? selectedAge;
+  Uint8List? _pickedImageBytes;
+  int _imagePickerResetKey = 0;
+  bool _isSubmitting = false;
   final List<String> genders = ['ผู้', 'เมีย'];
   final List<String> ageOptions =
       List.generate(25, (index) => '${index + 1} ปี');
 
-  void submitForm() {
-    if (nameController.text.isNotEmpty && selectedAge != null) {
+  Future<void> submitForm() async {
+    if (nameController.text.isEmpty || selectedAge == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      String imageUrl = '';
+      if (_pickedImageBytes != null) {
+        imageUrl =
+            await StorageService.instance.uploadPetImage(_pickedImageBytes!);
+      }
       final currentUser = AuthService.instance.currentUser;
       final newDog = {
         "id": DateTime.now().millisecondsSinceEpoch.toString(),
@@ -65,12 +84,11 @@ class _UploadScreenState extends State<UploadScreen> {
         "story": storyController.text.isEmpty
             ? "กำลังรอคนใจดีมารับไปดูแลอยู่ครับ/ค่ะ"
             : storyController.text,
-        "imageUrl": imageController.text.isNotEmpty
-            ? imageController.text
-            : "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=400&q=60",
+        "imageUrl": imageUrl,
         "status": "ยังไม่ถูกรับเลี้ยง",
       };
       widget.onAddDog(newDog);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ประกาศหาบ้านสำเร็จ!')));
       nameController.clear();
@@ -78,11 +96,17 @@ class _UploadScreenState extends State<UploadScreen> {
       weightController.clear();
       temperamentController.clear();
       storyController.clear();
-      imageController.clear();
-      setState(() => selectedAge = null);
-    } else {
+      setState(() {
+        selectedAge = null;
+        _pickedImageBytes = null;
+        _imagePickerResetKey++;
+      });
+    } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
+          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -158,16 +182,9 @@ class _UploadScreenState extends State<UploadScreen> {
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: ProvinceField(
                   value: selectedProvince,
-                  decoration: InputDecoration(
-                      labelText: 'จังหวัด',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  items: thaiProvinces
-                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                      .toList(),
-                  onChanged: (val) => setState(() => selectedProvince = val!),
+                  onChanged: (val) => setState(() => selectedProvince = val),
                 ),
               ),
               const SizedBox(width: 16),
@@ -203,16 +220,14 @@ class _UploadScreenState extends State<UploadScreen> {
                     fontSize: 16,
                     color: Colors.black87)),
             const SizedBox(height: 8),
-            TextField(
-                controller: imageController,
-                decoration: InputDecoration(
-                    labelText: 'URL รูปภาพโปรไฟล์น้องหมา',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    prefixIcon: const Icon(Icons.image))),
+            PetImagePicker(
+              key: ValueKey(_imagePickerResetKey),
+              onChanged: (bytes) =>
+                  setState(() => _pickedImageBytes = bytes),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: submitForm,
+              onPressed: _isSubmitting ? null : submitForm,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF9E68),
                 foregroundColor: Colors.white,
@@ -221,9 +236,16 @@ class _UploadScreenState extends State<UploadScreen> {
                     borderRadius: BorderRadius.circular(30)),
                 elevation: 2,
               ),
-              child: const Text('โพสต์หาบ้าน',
-                  style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.5),
+                    )
+                  : const Text('โพสต์หาบ้าน',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 32),
             const Divider(color: Colors.black12),

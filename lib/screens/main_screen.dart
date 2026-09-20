@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_dogs.dart';
 import '../services/chat_service.dart';
+import 'chat/chat_inbox_screen.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
 import 'profile/profile_screen.dart';
@@ -17,10 +17,8 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  List<Map<String, dynamic>> allDogs =
-      List<Map<String, dynamic>>.from(initialDogs);
-  List<Map<String, dynamic>> myPostedDogs =
-      List<Map<String, dynamic>>.from(initialMyPostedDogs);
+  List<Map<String, dynamic>> allDogs = [];
+  List<Map<String, dynamic>> myPostedDogs = [];
 
   List<Map<String, dynamic>> likedDogs = [];
   List<Map<String, dynamic>> passedDogs = [];
@@ -90,6 +88,7 @@ class _MainScreenState extends State<MainScreen> {
         myPostedDogs: myPostedDogs,
         onToggleFavorite: onToggleFavoriteDog,
       ),
+      const ChatInboxScreen(),
       UploadScreen(
         onAddDog: onAddDog,
         myPostedDogs: myPostedDogs,
@@ -116,11 +115,9 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(Icons.search), label: 'ค้นหา'),
           const BottomNavigationBarItem(
               icon: Icon(Icons.favorite), label: 'ถูกใจ'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
-          // ไอคอนโปรไฟล์ + badge แจ้งเตือน unread
+          // ไอคอนแชท + badge แจ้งเตือน unread (อยู่ตรงกลางของบาร์)
           BottomNavigationBarItem(
-            label: 'โปรไฟล์',
+            label: 'แชท',
             icon: StreamBuilder<int>(
               stream: ChatService.instance.unreadChatCountStream(),
               builder: (context, snapshot) {
@@ -128,7 +125,7 @@ class _MainScreenState extends State<MainScreen> {
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(Icons.person),
+                    const Icon(Icons.chat_bubble_outline),
                     if (unread > 0)
                       Positioned(
                         right: -4,
@@ -156,6 +153,10 @@ class _MainScreenState extends State<MainScreen> {
               },
             ),
           ),
+          const BottomNavigationBarItem(
+              icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
+          const BottomNavigationBarItem(
+              icon: Icon(Icons.person), label: 'โปรไฟล์'),
         ],
       ),
     );

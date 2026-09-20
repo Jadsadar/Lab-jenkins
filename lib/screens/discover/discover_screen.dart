@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/swipeable_card.dart';
+import '../chat/chat_screen.dart';
 
 class DiscoverScreen extends StatelessWidget {
   final List<Map<String, dynamic>> dogs;
@@ -21,6 +24,76 @@ class DiscoverScreen extends StatelessWidget {
     required this.likedDogs,
     required this.onToggleFavorite,
   });
+
+  Future<void> _handleLikeAndChat(
+      BuildContext context, Map<String, dynamic> dog) async {
+    onLike(dog);
+
+    final ownerId = dog['ownerId'] as String?;
+    final myUid = AuthService.instance.currentUser?.uid;
+    if (ownerId == null || ownerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('น้องตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+      return;
+    }
+    if (ownerId == myUid) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+      return;
+    }
+    final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
+    final chatId = await ChatService.instance.ensureChat(
+      otherUserId: ownerId,
+      otherUserName: ownerName,
+      dogName: dog['name'],
+    );
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatScreen(
+          chatId: chatId,
+          dogName: dog['name'],
+          otherUserName: ownerName,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleReport(
+      BuildContext context, Map<String, dynamic> dog) async {
+    const reasons = [
+      'ข้อมูลเป็นเท็จ',
+      'สแปมหรือโฆษณา',
+      'เนื้อหาไม่เหมาะสม',
+      'สงสัยว่าเป็นการหลอกลวง',
+      'อื่นๆ',
+    ];
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('รายงานประกาศนี้'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: reasons
+              .map((r) => ListTile(
+                    title: Text(r),
+                    onTap: () => Navigator.pop(context, r),
+                  ))
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +147,17 @@ class DiscoverScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       FloatingActionButton(
+                        heroTag: "btn_report",
+                        tooltip: 'รายงาน',
+                        onPressed: () => _handleReport(context, dogs.first),
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.grey.shade500,
+                        mini: true,
+                        elevation: 2,
+                        child: const Icon(Icons.flag_outlined, size: 24),
+                      ),
+                      const SizedBox(width: 24),
+                      FloatingActionButton(
                         heroTag: "btn_pass",
                         onPressed: () => onPass(dogs.first),
                         backgroundColor: Colors.white,
@@ -100,6 +184,18 @@ class DiscoverScreen extends StatelessWidget {
                         foregroundColor: Colors.green.shade400,
                         elevation: 2,
                         child: const Icon(Icons.favorite, size: 30),
+                      ),
+                      const SizedBox(width: 24),
+                      FloatingActionButton(
+                        heroTag: "btn_like_chat",
+                        tooltip: 'ถูกใจและแชท',
+                        onPressed: () =>
+                            _handleLikeAndChat(context, dogs.first),
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.pink.shade300,
+                        mini: true,
+                        elevation: 2,
+                        child: const Icon(Icons.chat_bubble, size: 24),
                       ),
                     ],
                   ),

@@ -1,6 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
+import '../../services/storage_service.dart';
+import '../../widgets/pet_image_picker.dart';
+import '../../widgets/province_picker.dart';
 
 class EditDogScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -19,10 +24,11 @@ class _EditDogScreenState extends State<EditDogScreen> {
   late TextEditingController weightController;
   late TextEditingController temperamentController;
   late TextEditingController storyController;
-  late TextEditingController imageController;
 
   late String selectedProvince;
   late String selectedGender;
+  Uint8List? _pickedImageBytes;
+  bool _isSaving = false;
   final List<String> genders = ['ผู้', 'เมีย'];
 
   @override
@@ -35,7 +41,6 @@ class _EditDogScreenState extends State<EditDogScreen> {
     temperamentController =
         TextEditingController(text: widget.dog['temperament']);
     storyController = TextEditingController(text: widget.dog['story']);
-    imageController = TextEditingController(text: widget.dog['imageUrl']);
     selectedProvince = thaiProvinces.contains(widget.dog['province'])
         ? widget.dog['province']
         : 'กรุงเทพมหานคร';
@@ -43,10 +48,18 @@ class _EditDogScreenState extends State<EditDogScreen> {
         genders.contains(widget.dog['gender']) ? widget.dog['gender'] : 'ผู้';
   }
 
-  void saveChanges() {
-    if (nameController.text.isNotEmpty && ageController.text.isNotEmpty) {
+  Future<void> saveChanges() async {
+    if (nameController.text.isEmpty || ageController.text.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      String imageUrl = widget.dog['imageUrl'] ?? '';
+      if (_pickedImageBytes != null) {
+        imageUrl =
+            await StorageService.instance.uploadPetImage(_pickedImageBytes!);
+      }
       final updatedDog = {
-        "id": widget.dog['id'],
+        ...widget.dog,
         "name": nameController.text,
         "breed":
             breedController.text.isEmpty ? "พันทาง" : breedController.text,
@@ -60,15 +73,19 @@ class _EditDogScreenState extends State<EditDogScreen> {
         "story": storyController.text.isEmpty
             ? "ไม่มีข้อมูล"
             : storyController.text,
-        "imageUrl": imageController.text.isNotEmpty
-            ? imageController.text
-            : "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=400&q=60",
-        "status": widget.dog['status'],
+        "imageUrl": imageUrl,
       };
       widget.onSave(updatedDog);
+      if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('อัปเดตข้อมูลสำเร็จ!')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -130,17 +147,9 @@ class _EditDogScreenState extends State<EditDogScreen> {
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: ProvinceField(
                   value: selectedProvince,
-                  decoration: InputDecoration(
-                      labelText: 'จังหวัด',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  items: thaiProvinces
-                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                      .toList(),
-                  onChanged: (val) =>
-                      setState(() => selectedProvince = val!),
+                  onChanged: (val) => setState(() => selectedProvince = val),
                 ),
               ),
               const SizedBox(width: 16),
@@ -175,16 +184,14 @@ class _EditDogScreenState extends State<EditDogScreen> {
                     fontSize: 16,
                     color: Colors.black87)),
             const SizedBox(height: 8),
-            TextField(
-                controller: imageController,
-                decoration: InputDecoration(
-                    labelText: 'URL รูปภาพโปรไฟล์น้องหมา',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    prefixIcon: const Icon(Icons.image))),
+            PetImagePicker(
+              initialImageUrl: widget.dog['imageUrl'],
+              onChanged: (bytes) =>
+                  setState(() => _pickedImageBytes = bytes),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: saveChanges,
+              onPressed: _isSaving ? null : saveChanges,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueGrey.shade400,
                 foregroundColor: Colors.white,
@@ -192,9 +199,16 @@ class _EditDogScreenState extends State<EditDogScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30)),
               ),
-              child: const Text('บันทึกการแก้ไข',
-                  style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.5),
+                    )
+                  : const Text('บันทึกการแก้ไข',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

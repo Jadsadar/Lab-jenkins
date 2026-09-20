@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/province_picker.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -151,18 +152,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFFF9E68))),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
+            ProvinceField(
               value: selectedProvince,
-              decoration: InputDecoration(
-                  labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-              items: thaiProvinces
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                  .toList(),
-              onChanged: _isLoading
-                  ? null
-                  : (val) => setState(() => selectedProvince = val!),
+              labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+              enabled: !_isLoading,
+              onChanged: (val) => setState(() => selectedProvince = val),
             ),
             const SizedBox(height: 32),
             ElevatedButton(
