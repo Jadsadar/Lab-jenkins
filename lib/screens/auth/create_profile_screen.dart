@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../utils/pet_tags.dart';
 import '../main_screen.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
@@ -23,8 +24,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   final TextEditingController fbController = TextEditingController();
 
   String selectedHomeType = homeTypes.first;
-  String selectedRole = userRoles.first;
-  final List<String> selectedTraits = [];
+  final List<String> selectedTraitIds = [];
   bool _isSaving = false;
 
   Uint8List? _pickedImageBytes;
@@ -44,12 +44,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     });
   }
 
-  void _toggleTrait(String trait) {
+  void _toggleTrait(String tagId) {
     setState(() {
-      if (selectedTraits.contains(trait)) {
-        selectedTraits.remove(trait);
+      if (selectedTraitIds.contains(tagId)) {
+        selectedTraitIds.remove(tagId);
       } else {
-        selectedTraits.add(trait);
+        selectedTraitIds.add(tagId);
       }
     });
   }
@@ -78,8 +78,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
           'lineId': lineController.text.trim(),
           'fbLink': fbController.text.trim(),
           'homeType': selectedHomeType,
-          'role': selectedRole,
-          'traits': selectedTraits,
+          'traits': selectedTraitIds,
           if (imageUrl != null) 'profileImageUrl': imageUrl,
         },
       );
@@ -88,8 +87,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       currentUserProfile['lineId'] = lineController.text.trim();
       currentUserProfile['fbLink'] = fbController.text.trim();
       currentUserProfile['homeType'] = selectedHomeType;
-      currentUserProfile['role'] = selectedRole;
-      currentUserProfile['traits'] = List<String>.from(selectedTraits);
+      currentUserProfile['traits'] = List<String>.from(selectedTraitIds);
       if (imageUrl != null) currentUserProfile['profileImageUrl'] = imageUrl;
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -281,27 +279,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                     ? null
                     : (val) => setState(() => selectedHomeType = val!),
               ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: selectedRole,
-                isExpanded: true,
-                decoration: InputDecoration(
-                    labelText: 'บทบาทหลักในการเข้าใช้แอป',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none)),
-                items: userRoles
-                    .map((r) => DropdownMenuItem(
-                        value: r,
-                        child:
-                            Text(r, style: const TextStyle(fontSize: 13))))
-                    .toList(),
-                onChanged: _isSaving
-                    ? null
-                    : (val) => setState(() => selectedRole = val!),
-              ),
               const SizedBox(height: 24),
               Align(
                 alignment: Alignment.centerLeft,
@@ -315,10 +292,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
               Wrap(
                 spacing: 8.0,
                 runSpacing: 4.0,
-                children: availableTraits.map((trait) {
-                  final isSelected = selectedTraits.contains(trait);
+                children: petTags.map((tag) {
+                  final isSelected = selectedTraitIds.contains(tag.id);
                   return ChoiceChip(
-                    label: Text(trait,
+                    label: Text(tag.label,
                         style: TextStyle(
                             color:
                                 isSelected ? Colors.white : Colors.black87,
@@ -327,7 +304,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                 : FontWeight.normal)),
                     selected: isSelected,
                     onSelected:
-                        _isSaving ? null : (_) => _toggleTrait(trait),
+                        _isSaving ? null : (_) => _toggleTrait(tag.id),
                     selectedColor: const Color(0xFFFF9E68),
                     backgroundColor: Colors.white,
                     side: BorderSide.none,

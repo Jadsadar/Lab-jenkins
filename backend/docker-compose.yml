@@ -1,0 +1,106 @@
+# โครงสร้างพื้นฐานสำหรับ backend ของ PetPaws
+#
+#   docker compose up -d
+#
+# ครั้งแรกที่ postgres ถูกสร้าง ไฟล์ทั้งหมดใน db/migrations จะถูกรันตามลำดับชื่อไฟล์
+# อัตโนมัติ (กลไก docker-entrypoint-initdb.d ของ image postgres)
+#
+# ข้อควรรู้: กลไกนี้ทำงาน "ครั้งเดียวตอน volume ยังว่าง" เท่านั้น
+# ถ้าแก้ไฟล์ migration แล้วอยากให้มีผล ต้อง `docker compose down -v` เพื่อล้าง volume
+# ส่วนบน production ต้องใช้ migration runner จริง (ดู db/README.md หัวข้อ "การรัน migration")
+
+name: petpaws
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: petpaws-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-petpaws}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-petpaws_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-petpaws}
+      # ใช้ UTC ในฐานข้อมูลเสมอ แล้วค่อยแปลงเป็นเวลาไทยที่ชั้นแสดงผล
+      # ถ้าตั้ง timezone เป็น Asia/Bangkok ที่ฐานข้อมูล จะเจอปัญหาตอนมีผู้ใช้ข้ามโซนเวลา
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-petpaws} -d ${POSTGRES_DB:-petpaws}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: petpaws-redis
+    restart: unless-stopped
+    # appendonly = ข้อมูลไม่หายตอน restart
+    # สำคัญกับ BullMQ เพราะคิวงานที่ค้างอยู่จะหายไปทั้งหมดถ้าไม่เปิด
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      --maxmemory-policy noeviction
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # เครื่องมือส่องฐานข้อมูลผ่านเบราว์เซอร์ ใช้เฉพาะตอน dev
+  # เปิดด้วย: docker compose --profile tools up -d
+  adminer:
+    image: adminer:latest
+    container_name: petpaws-adminer
+    restart: unless-stopped
+    profiles: ["tools"]
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # object storage สำหรับ dev — พูด S3 API ได้เหมือนกัน (presigned URL ใช้โค้ดเดียวกัน
+  # เปลี่ยนแค่ endpoint ตอนขึ้น production จริงค่อยสลับไป S3/R2/Spaces ของจริง)
+  # ROADMAP.md Phase 3.1 (presigned upload) และ 3.9 (กวาดไฟล์ orphan) ใช้ตัวนี้
+  # console เว็บอยู่ที่ MINIO_CONSOLE_PORT (ดู .env.example) ล็อกอินด้วย
+  # MINIO_ROOT_USER / MINIO_ROOT_PASSWORD แล้วสร้าง bucket ชื่อตาม S3_BUCKET เอง
+  # (ยังไม่ auto-create ให้ — ทำตอนเขียน media module ค่อยเพิ่ม init script)
+  minio:
+    # MinIO ถอด image ออกจาก Docker Hub แล้ว (ย้าย distribution ไป quay.io)
+    # ห้ามเปลี่ยนกลับไปใช้ minio/minio เพราะ pull จะถูกปฏิเสธ (ยืนยันแล้วตอนตั้งค่า)
+    image: quay.io/minio/minio:latest
+    container_name: petpaws-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-petpaws_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-petpaws_minio_password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

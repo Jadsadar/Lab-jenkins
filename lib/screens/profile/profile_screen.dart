@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
+import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
 import '../chat/chat_inbox_screen.dart';
 
@@ -26,23 +27,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       TextEditingController(text: currentUserProfile['fbLink']);
 
   String currentHomeType = currentUserProfile['homeType'];
-  String currentRole = currentUserProfile['role'];
 
-  late List<String> selectedTraits;
+  late List<String> selectedTraitIds;
 
   @override
   void initState() {
     super.initState();
-    selectedTraits = List<String>.from(currentUserProfile['traits'] ?? []);
+    selectedTraitIds = List<String>.from(currentUserProfile['traits'] ?? []);
   }
 
-  void toggleTrait(String trait) {
+  void toggleTrait(String tagId) {
     if (!_isEditing) return;
     setState(() {
-      if (selectedTraits.contains(trait)) {
-        selectedTraits.remove(trait);
+      if (selectedTraitIds.contains(tagId)) {
+        selectedTraitIds.remove(tagId);
       } else {
-        selectedTraits.add(trait);
+        selectedTraitIds.add(tagId);
       }
     });
   }
@@ -53,8 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       currentUserProfile['lineId'] = lineController.text;
       currentUserProfile['fbLink'] = fbController.text;
       currentUserProfile['homeType'] = currentHomeType;
-      currentUserProfile['role'] = currentRole;
-      currentUserProfile['traits'] = selectedTraits;
+      currentUserProfile['traits'] = selectedTraitIds;
       _isEditing = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -321,10 +320,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               spacing: 8.0,
               runSpacing: 4.0,
               alignment: WrapAlignment.start,
-              children: availableTraits.map((trait) {
-                final isSelected = selectedTraits.contains(trait);
+              children: petTags.map((tag) {
+                final isSelected = selectedTraitIds.contains(tag.id);
                 return ChoiceChip(
-                  label: Text(trait,
+                  label: Text(tag.label,
                       style: TextStyle(
                           color: isSelected ? Colors.white : Colors.black87,
                           fontWeight: isSelected
@@ -332,7 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : FontWeight.normal)),
                   selected: isSelected,
                   onSelected:
-                      _isEditing ? (selected) => toggleTrait(trait) : null,
+                      _isEditing ? (selected) => toggleTrait(tag.id) : null,
                   selectedColor: const Color(0xFFFF9E68),
                   backgroundColor: const Color(0xFFFFF6F0),
                   disabledColor: isSelected
@@ -417,27 +416,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .toList(),
               onChanged: _isEditing
                   ? (val) => setState(() => currentHomeType = val!)
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: currentRole,
-              isExpanded: true,
-              disabledHint: Text(
-                currentRole,
-                style: const TextStyle(fontSize: 13),
-              ),
-              decoration: InputDecoration(
-                  labelText: 'บทบาทหลักในการเข้าใช้แอป',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-              items: userRoles
-                  .map((r) => DropdownMenuItem(
-                      value: r,
-                      child: Text(r, style: const TextStyle(fontSize: 13))))
-                  .toList(),
-              onChanged: _isEditing
-                  ? (val) => setState(() => currentRole = val!)
                   : null,
             ),
             const SizedBox(height: 32),

@@ -43,3 +43,26 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Backend secrets — .env มีรหัสผ่าน DB / JWT secret / คีย์ S3 ห้ามหลุดขึ้น git เด็ดขาด
+backend/.env
+backend/.env.local
+backend/api/.env
+backend/api/.env.*
+!backend/api/.env.example
+
+# Node / NestJS (backend/api) — 163MB+ ถ้า node_modules หลุดขึ้นไปจะดึง repo ช้ามาก
+# และ dist/ generate ใหม่ได้จาก source เสมอ ไม่มีเหตุผลต้อง commit
+**/node_modules/
+backend/api/dist/
+backend/api/build/
+backend/api/coverage/
+backend/api/*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Docker volumes ถูก mount ผ่าน docker-compose อยู่แล้ว ไม่ควรมีไฟล์ data ค้างในซอร์ส
+backend/db/pgdata/
+backend/db/miniodata/
