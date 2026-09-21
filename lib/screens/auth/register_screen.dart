@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../utils/password_policy.dart';
+import '../../widgets/password_checklist.dart';
 import '../../widgets/province_picker.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -34,6 +36,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (username.contains('@') || username.contains(' ')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('ชื่อผู้ใช้ห้ามมีเว้นวรรคหรือเครื่องหมาย @')));
+      return;
+    }
+    final passwordError = PasswordPolicy.firstError(
+      passwordController.text,
+      username: username,
+      email: emailController.text,
+    );
+    if (passwordError != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(passwordError)));
       return;
     }
     if (passwordController.text != confirmPasswordController.text) {
@@ -118,8 +130,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: passwordController,
                 obscureText: _obscurePassword,
                 enabled: !_isLoading,
+                onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                    labelText: 'รหัสผ่าน (อย่างน้อย 6 ตัวอักษร) *',
+                    labelText: 'รหัสผ่าน *',
                     suffixIcon: IconButton(
                       icon: Icon(_obscurePassword
                           ? Icons.visibility_off
@@ -129,6 +142,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
+            PasswordChecklist(
+              password: passwordController.text,
+              username: usernameController.text,
+              email: emailController.text,
+            ),
             const SizedBox(height: 16),
             TextField(
                 controller: confirmPasswordController,
