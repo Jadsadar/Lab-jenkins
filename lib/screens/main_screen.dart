@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../data/demo_seed.dart';
+import '../data/mock_data.dart';
 import '../services/chat_service.dart';
+import '../utils/pet_ranking.dart';
 import 'chat/chat_inbox_screen.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
@@ -17,7 +20,9 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  List<Map<String, dynamic>> allDogs = [];
+  // DEMO SEED: ใช้ demoPets เติมฟีดไปก่อน เพราะยังไม่มี collection pets ใน Firestore
+  // ลบบรรทัดนี้แล้วเปลี่ยนเป็น [] เมื่อต่อ Firestore จริงแล้ว (ดู lib/data/demo_seed.dart)
+  List<Map<String, dynamic>> allDogs = List<Map<String, dynamic>>.from(demoPets);
   List<Map<String, dynamic>> myPostedDogs = [];
 
   List<Map<String, dynamic>> likedDogs = [];
@@ -73,9 +78,16 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // จัดลำดับฟีดให้สัตว์เลี้ยงที่แท็กตรงกับผู้ใช้ขึ้นก่อน
+    final feed = sortPetsForUser(
+      allDogs,
+      userTagIds: List<String>.from(currentUserProfile['traits'] ?? []),
+      userProvince: currentUserProfile['province'] ?? '',
+    );
+
     final List<Widget> screens = [
       DiscoverScreen(
-        dogs: allDogs,
+        dogs: feed,
         onLike: onLike,
         onPass: onPass,
         onUndoPass: onUndoPass,

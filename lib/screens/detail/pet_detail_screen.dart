@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../data/demo_seed.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
+import '../../utils/pet_tags.dart';
+import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
+import '../profile/user_profile_screen.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
+import '../chat/demo_chat_screen.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -12,12 +17,16 @@ class PetDetailScreen extends StatefulWidget {
   final bool isFavorited;
   final VoidCallback? onToggleFavorite;
 
+  /// รายการสัตว์เลี้ยงเท่าที่หน้าที่เรียกมารู้จัก ใช้หาประกาศตัวอื่นของเจ้าของคนเดียวกัน
+  final List<Map<String, dynamic>> knownPets;
+
   const PetDetailScreen({
     super.key,
     required this.dog,
     this.isMyPost = false,
     this.isFavorited = false,
     this.onToggleFavorite,
+    this.knownPets = const [],
   });
 
   @override
@@ -39,12 +48,29 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('น้องตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+          content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+      return;
+    }
+
+    // DEMO SEED: เจ้าของเป็นผู้ใช้จำลอง เปิดแชทจำลองแทน ไม่แตะ Firestore
+    // ลบเงื่อนไขนี้ทิ้งได้พร้อมกับ lib/data/demo_seed.dart
+    if (demoUsers.containsKey(ownerId)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DemoChatScreen(
+            petId: widget.dog['id'].toString(),
+            dogName: widget.dog['name'],
+            otherUserId: ownerId,
+            otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+          ),
+        ),
+      );
       return;
     }
 
@@ -63,9 +89,14 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             chatId: chatId,
             dogName: widget.dog['name'],
             otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+            otherUserId: ownerId,
           ),
         ),
       );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('เปิดแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isOpeningChat = false);
     }
@@ -141,7 +172,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                               fontSize: 18, color: Colors.grey[700])),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  _ownerRow(),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       _buildInfoCard(Icons.pets, 'สายพันธุ์',
@@ -163,12 +196,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   Wrap(
                     spacing: 8.0,
                     runSpacing: 8.0,
-                    children:
-                        (widget.dog['temperament'] as String? ?? 'ไม่ระบุ')
-                            .split(',')
-                            .map((temp) {
+                    children: (petTagIds(widget.dog).isEmpty
+                            ? ['ไม่ระบุ']
+                            : tagLabels(petTagIds(widget.dog)))
+                        .map((temp) {
                       return Chip(
-                        label: Text(temp.trim(),
+                        label: Text(temp,
                             style: const TextStyle(
                                 color: Color(0xFFFF9E68),
                                 fontWeight: FontWeight.bold)),
@@ -282,6 +315,59 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// แถบเจ้าของประกาศ กดแล้วไปดูโปรไฟล์และประกาศตัวอื่นของเขา
+  Widget _ownerRow() {
+    final ownerId = widget.dog['ownerId'] as String?;
+    final ownerName = widget.dog['ownerName'] as String? ?? 'เจ้าของ';
+    if (ownerId == null || ownerId.isEmpty) return const SizedBox.shrink();
+
+    final ownerPets = widget.knownPets
+        .where((pet) => pet['ownerId'] == ownerId)
+        .toList(growable: false);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => UserProfileScreen(
+            uid: ownerId,
+            fallbackName: ownerName,
+            ownerPets: ownerPets,
+          ),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: const Color(0xFFFFF6F0),
+            borderRadius: BorderRadius.circular(16)),
+        child: Row(
+          children: [
+            const PetAvatar(imageUrl: null, radius: 20, icon: Icons.person),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('ผู้ลงประกาศ',
+                      style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text(ownerName,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const Text('ดูโปรไฟล์',
+                style: TextStyle(
+                    color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
+            const Icon(Icons.chevron_right, color: Color(0xFFFF9E68)),
           ],
         ),
       ),

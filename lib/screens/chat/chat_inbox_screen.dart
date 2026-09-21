@@ -44,7 +44,7 @@ class ChatInboxScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFFF9E68),
                     fontSize: 18)),
-            Text(dogName == null ? 'ข้อความทั้งหมด' : 'น้อง$dogName',
+            Text(dogName == null ? 'ข้อความทั้งหมด' : 'สัตว์เลี้ยง: $dogName',
                 style: const TextStyle(fontSize: 12, color: Colors.black45)),
           ],
         ),
@@ -76,7 +76,7 @@ class ChatInboxScreen extends StatelessWidget {
                   Text('ยังไม่มีคนทักมาเลย',
                       style: TextStyle(fontSize: 16, color: Colors.grey)),
                   SizedBox(height: 8),
-                  Text('แชร์โพสต์เพื่อให้คนรู้จักน้องมากขึ้นนะครับ',
+                  Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
                       style: TextStyle(fontSize: 13, color: Colors.black38)),
                 ],
               ),
@@ -146,7 +146,7 @@ class ChatInboxScreen extends StatelessWidget {
                 ),
                 subtitle: Text(
                   dogName == null
-                      ? 'น้อง$chatDogName • ${lastMessage.isEmpty ? "เริ่มการสนทนาแล้ว" : lastMessage}'
+                      ? 'สัตว์เลี้ยง: $chatDogName • ${lastMessage.isEmpty ? "เริ่มการสนทนาแล้ว" : lastMessage}'
                       : (lastMessage.isEmpty ? 'เริ่มการสนทนาแล้ว' : lastMessage),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -163,6 +163,7 @@ class ChatInboxScreen extends StatelessWidget {
                         chatId: doc.id,
                         dogName: chatDogName,
                         otherUserName: otherName,
+                        otherUserId: otherUid,
                       ),
                     ),
                   );

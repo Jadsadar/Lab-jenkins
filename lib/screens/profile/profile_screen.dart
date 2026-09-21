@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
-import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
+import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -34,6 +33,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     selectedTraitIds = List<String>.from(currentUserProfile['traits'] ?? []);
+  }
+
+  /// ตอนยังไม่กดแก้ไข ช่องพวกนี้จะกดไม่ได้ ถ้าผู้ใช้แตะจะนึกว่าแอปค้าง
+  /// เลยดักการแตะไว้แล้วบอกให้กดปุ่มแก้ไขก่อน
+  Widget _lockedHint(Widget child) {
+    if (_isEditing) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กดปุ่ม "แก้ไขข้อมูล" ด้านล่างก่อน จึงจะเปลี่ยนข้อมูลได้'),
+          duration: Duration(seconds: 2),
+        ),
+      ),
+      child: AbsorbPointer(child: child),
+    );
   }
 
   void toggleTrait(String tagId) {
@@ -87,15 +102,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     }
-  }
-
-  void _copyFacebookName() {
-    final name = fbController.text.trim();
-    if (name.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: name));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('คัดลอกชื่อ Facebook แล้ว'),
-        duration: Duration(seconds: 1)));
   }
 
   Future<void> _logout() async {
@@ -284,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       color: Color(0xFFFF9E68)),
                                 ),
                                 const Text(
-                                  'มีคนสนใจรับเลี้ยงน้องของคุณ กดเพื่อดูแชท',
+                                  'มีคนสนใจรับเลี้ยงสัตว์เลี้ยงของคุณ กดเพื่อดูแชท',
                                   style: TextStyle(
                                       fontSize: 12, color: Colors.black54),
                                 ),
@@ -316,33 +322,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
-              alignment: WrapAlignment.start,
-              children: petTags.map((tag) {
-                final isSelected = selectedTraitIds.contains(tag.id);
-                return ChoiceChip(
-                  label: Text(tag.label,
-                      style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal)),
-                  selected: isSelected,
-                  onSelected:
-                      _isEditing ? (selected) => toggleTrait(tag.id) : null,
-                  selectedColor: const Color(0xFFFF9E68),
-                  backgroundColor: const Color(0xFFFFF6F0),
-                  disabledColor: isSelected
-                      ? const Color(0xFFFF9E68).withOpacity(0.65)
-                      : const Color(0xFFFFF6F0),
-                  side: BorderSide.none,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                );
-              }).toList(),
-            ),
+            _lockedHint(TagSelector(
+              selectedIds: selectedTraitIds,
+              onToggle: toggleTrait,
+              enabled: _isEditing,
+              backgroundColor: const Color(0xFFFFF6F0),
+            )),
             const SizedBox(height: 24),
             const Divider(color: Colors.black12),
             const SizedBox(height: 8),
@@ -384,11 +369,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: InputDecoration(
                   labelText: 'ชื่อ Facebook',
                   prefixIcon: const Icon(Icons.facebook),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.copy, size: 20),
-                    tooltip: 'คัดลอกชื่อ Facebook',
-                    onPressed: _copyFacebookName,
-                  ),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
             ),
@@ -404,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
+            _lockedHint(DropdownButtonFormField<String>(
               value: currentHomeType,
               disabledHint: Text(currentHomeType),
               decoration: InputDecoration(
@@ -417,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onChanged: _isEditing
                   ? (val) => setState(() => currentHomeType = val!)
                   : null,
-            ),
+            )),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,

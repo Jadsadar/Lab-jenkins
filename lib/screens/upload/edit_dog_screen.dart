@@ -1,11 +1,12 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/pet_image_picker.dart';
+import '../../utils/pet_tags.dart';
 import '../../widgets/province_picker.dart';
+import '../../widgets/tag_selector.dart';
 
 class EditDogScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -22,9 +23,9 @@ class _EditDogScreenState extends State<EditDogScreen> {
   late TextEditingController breedController;
   late TextEditingController ageController;
   late TextEditingController weightController;
-  late TextEditingController temperamentController;
   late TextEditingController storyController;
 
+  late List<String> selectedTags;
   late String selectedProvince;
   late String selectedGender;
   Uint8List? _pickedImageBytes;
@@ -38,15 +39,22 @@ class _EditDogScreenState extends State<EditDogScreen> {
     breedController = TextEditingController(text: widget.dog['breed']);
     ageController = TextEditingController(text: widget.dog['age']);
     weightController = TextEditingController(text: widget.dog['weight']);
-    temperamentController =
-        TextEditingController(text: widget.dog['temperament']);
     storyController = TextEditingController(text: widget.dog['story']);
+    selectedTags = List<String>.from(petTagIds(widget.dog));
     selectedProvince = thaiProvinces.contains(widget.dog['province'])
         ? widget.dog['province']
         : 'กรุงเทพมหานคร';
     selectedGender =
         genders.contains(widget.dog['gender']) ? widget.dog['gender'] : 'ผู้';
   }
+
+  void _toggleTag(String tagId) => setState(() {
+        if (selectedTags.contains(tagId)) {
+          selectedTags.remove(tagId);
+        } else {
+          selectedTags.add(tagId);
+        }
+      });
 
   Future<void> saveChanges() async {
     if (nameController.text.isEmpty || ageController.text.isEmpty) return;
@@ -67,9 +75,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
         "age": ageController.text,
         "gender": selectedGender,
         "weight": weightController.text.isEmpty ? "-" : weightController.text,
-        "temperament": temperamentController.text.isEmpty
-            ? "น่ารัก เป็นมิตร"
-            : temperamentController.text,
+        "tags": List<String>.from(selectedTags),
         "story": storyController.text.isEmpty
             ? "ไม่มีข้อมูล"
             : storyController.text,
@@ -110,7 +116,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
             TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                    labelText: 'ชื่อน้องหมา *',
+                    labelText: 'ชื่อสัตว์เลี้ยง *',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
@@ -125,6 +131,10 @@ class _EditDogScreenState extends State<EditDogScreen> {
               Expanded(
                   child: TextField(
                       controller: ageController,
+                      // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'-'))
+                      ],
                       decoration: InputDecoration(
                           labelText: 'อายุ *',
                           border: OutlineInputBorder(
@@ -156,25 +166,39 @@ class _EditDogScreenState extends State<EditDogScreen> {
               Expanded(
                   child: TextField(
                       controller: weightController,
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      // รับเฉพาะตัวเลขกับจุดทศนิยม พิมพ์เครื่องหมายลบไม่ได้
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                      ],
                       decoration: InputDecoration(
                           labelText: 'น้ำหนัก (กก.)',
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16))))),
             ]),
             const SizedBox(height: 16),
-            TextField(
-                controller: temperamentController,
-                decoration: InputDecoration(
-                    labelText: 'นิสัยเด่นๆ',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('นิสัยเด่นๆ ของสัตว์เลี้ยง',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700)),
+            ),
+            const SizedBox(height: 12),
+            TagSelector(
+              selectedIds: selectedTags,
+              onToggle: _toggleTag,
+              enabled: !_isSaving,
+              backgroundColor: const Color(0xFFFFF6F0),
+            ),
             const SizedBox(height: 16),
             TextField(
                 controller: storyController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                    labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของน้อง',
+                    labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),

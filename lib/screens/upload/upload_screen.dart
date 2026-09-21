@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
@@ -8,6 +7,7 @@ import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../widgets/province_picker.dart';
+import '../../widgets/tag_selector.dart';
 import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
 
@@ -39,8 +39,9 @@ class _UploadScreenState extends State<UploadScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController breedController = TextEditingController();
   final TextEditingController weightController = TextEditingController();
-  final TextEditingController temperamentController = TextEditingController();
   final TextEditingController storyController = TextEditingController();
+
+  final List<String> selectedTags = [];
 
   String selectedProvince = 'กรุงเทพมหานคร';
   String selectedGender = 'ผู้';
@@ -51,6 +52,14 @@ class _UploadScreenState extends State<UploadScreen> {
   final List<String> genders = ['ผู้', 'เมีย'];
   final List<String> ageOptions =
       List.generate(25, (index) => '${index + 1} ปี');
+
+  void _toggleTag(String tagId) => setState(() {
+        if (selectedTags.contains(tagId)) {
+          selectedTags.remove(tagId);
+        } else {
+          selectedTags.add(tagId);
+        }
+      });
 
   Future<void> submitForm() async {
     if (nameController.text.isEmpty || selectedAge == null) {
@@ -78,9 +87,7 @@ class _UploadScreenState extends State<UploadScreen> {
         "age": selectedAge!,
         "gender": selectedGender,
         "weight": weightController.text.isEmpty ? "-" : weightController.text,
-        "temperament": temperamentController.text.isEmpty
-            ? "น่ารัก เป็นมิตร"
-            : temperamentController.text,
+        "tags": List<String>.from(selectedTags),
         "story": storyController.text.isEmpty
             ? "กำลังรอคนใจดีมารับไปดูแลอยู่ครับ/ค่ะ"
             : storyController.text,
@@ -94,7 +101,7 @@ class _UploadScreenState extends State<UploadScreen> {
       nameController.clear();
       breedController.clear();
       weightController.clear();
-      temperamentController.clear();
+      selectedTags.clear();
       storyController.clear();
       setState(() {
         selectedAge = null;
@@ -136,7 +143,7 @@ class _UploadScreenState extends State<UploadScreen> {
             TextField(
               controller: nameController,
               decoration: InputDecoration(
-                  labelText: 'ชื่อน้องหมา *',
+                  labelText: 'ชื่อสัตว์เลี้ยง *',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
             ),
@@ -191,7 +198,12 @@ class _UploadScreenState extends State<UploadScreen> {
               Expanded(
                 child: TextField(
                     controller: weightController,
-                    keyboardType: TextInputType.number,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    // รับเฉพาะตัวเลขกับจุดทศนิยม พิมพ์เครื่องหมายลบไม่ได้
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                    ],
                     decoration: InputDecoration(
                         labelText: 'น้ำหนัก (กก.)',
                         border: OutlineInputBorder(
@@ -199,18 +211,27 @@ class _UploadScreenState extends State<UploadScreen> {
               ),
             ]),
             const SizedBox(height: 16),
-            TextField(
-                controller: temperamentController,
-                decoration: InputDecoration(
-                    labelText: 'นิสัยเด่นๆ',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('นิสัยเด่นๆ ของสัตว์เลี้ยง',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700)),
+            ),
+            const SizedBox(height: 12),
+            TagSelector(
+              selectedIds: selectedTags,
+              onToggle: _toggleTag,
+              enabled: !_isSubmitting,
+              backgroundColor: const Color(0xFFFFF6F0),
+            ),
             const SizedBox(height: 16),
             TextField(
                 controller: storyController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                    labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของน้อง',
+                    labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
@@ -284,6 +305,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                         isMyPost: true,
                                         isFavorited: widget.likedDogs.any((d) => d['id'] == dog['id']),
                                         onToggleFavorite: () => widget.onToggleFavorite(dog),
+                                        knownPets: widget.myPostedDogs,
                                       ))),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(

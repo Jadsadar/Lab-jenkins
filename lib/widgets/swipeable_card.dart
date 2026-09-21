@@ -11,6 +11,9 @@ class SwipeableCard extends StatelessWidget {
   final List<Map<String, dynamic>> likedDogs;
   final Function(Map<String, dynamic>) onToggleFavorite;
 
+  /// สัตว์เลี้ยงทั้งหมดในฟีด ส่งต่อให้หน้ารายละเอียดใช้หาประกาศอื่นของเจ้าของคนเดียวกัน
+  final List<Map<String, dynamic>> allPets;
+
   const SwipeableCard({
     super.key,
     required this.dog,
@@ -18,6 +21,7 @@ class SwipeableCard extends StatelessWidget {
     required this.onPass,
     required this.likedDogs,
     required this.onToggleFavorite,
+    this.allPets = const [],
   });
 
   @override
@@ -56,6 +60,7 @@ class SwipeableCard extends StatelessWidget {
                       isMyPost: false,
                       isFavorited: likedDogs.any((d) => d['id'] == dog['id']),
                       onToggleFavorite: () => onToggleFavorite(dog),
+                      knownPets: allPets,
                     ))),
         child: Container(
           width: double.infinity,
