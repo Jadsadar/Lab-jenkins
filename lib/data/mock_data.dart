@@ -21,7 +21,7 @@ const List<String> homeTypes = [
 
 const List<String> userRoles = [
   'ฉันอยากหาหมาไปเลี้ยง (Adopter)',
-  'ฉันมีน้องหมาอยากหาบ้านให้ (Owner/Shelter)'
+  'ฉันมีสัตว์เลี้ยงอยากหาบ้านให้ (Owner/Shelter)'
 ];
 
 const List<String> availableTraits = [

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
+import '../profile/user_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -11,12 +12,16 @@ class ChatScreen extends StatefulWidget {
   final String otherUserName;
   final String otherUserAvatar;
 
+  /// uid ของคู่สนทนา ใช้เปิดหน้าโปรไฟล์ของเขา ถ้าว่างจะกดดูโปรไฟล์ไม่ได้
+  final String otherUserId;
+
   const ChatScreen({
     super.key,
     required this.chatId,
     required this.dogName,
     required this.otherUserName,
     this.otherUserAvatar = '',
+    this.otherUserId = '',
   });
 
   @override
@@ -67,7 +72,19 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF6F0),
       appBar: AppBar(
-        title: Row(
+        title: GestureDetector(
+          onTap: widget.otherUserId.isEmpty
+              ? null
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserProfileScreen(
+                        uid: widget.otherUserId,
+                        fallbackName: widget.otherUserName,
+                      ),
+                    ),
+                  ),
+          child: Row(
           children: [
             widget.otherUserAvatar.isNotEmpty
                 ? PetAvatar(
@@ -94,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'น้อง${widget.dogName}',
+                    'สัตว์เลี้ยง: ${widget.dogName}',
                     style:
                         const TextStyle(fontSize: 11, color: Colors.white70),
                   ),
@@ -102,6 +119,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ],
+          ),
         ),
         backgroundColor: const Color(0xFFFF9E68),
         foregroundColor: Colors.white,
@@ -124,7 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
-                      'ทักทายน้อง${widget.dogName}กันเลย!',
+                      'ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
                       style: const TextStyle(color: Colors.black38),
                     ),
                   );

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../data/demo_seed.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/swipeable_card.dart';
 import '../chat/chat_screen.dart';
+import '../chat/demo_chat_screen.dart';
 
 class DiscoverScreen extends StatelessWidget {
   final List<Map<String, dynamic>> dogs;
@@ -33,7 +35,7 @@ class DiscoverScreen extends StatelessWidget {
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('น้องตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+          content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
@@ -42,22 +44,47 @@ class DiscoverScreen extends StatelessWidget {
       return;
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
-    final chatId = await ChatService.instance.ensureChat(
-      otherUserId: ownerId,
-      otherUserName: ownerName,
-      dogName: dog['name'],
-    );
-    if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          chatId: chatId,
-          dogName: dog['name'],
-          otherUserName: ownerName,
+
+    // DEMO SEED: เจ้าของเป็นผู้ใช้จำลอง เปิดแชทจำลองแทน ไม่แตะ Firestore
+    // ลบเงื่อนไขนี้ทิ้งได้พร้อมกับ lib/data/demo_seed.dart
+    if (demoUsers.containsKey(ownerId)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DemoChatScreen(
+            petId: dog['id'].toString(),
+            dogName: dog['name'],
+            otherUserId: ownerId,
+            otherUserName: ownerName,
+          ),
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    try {
+      final chatId = await ChatService.instance.ensureChat(
+        otherUserId: ownerId,
+        otherUserName: ownerName,
+        dogName: dog['name'],
+      );
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            chatId: chatId,
+            dogName: dog['name'],
+            otherUserName: ownerName,
+            otherUserId: ownerId,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('เปิดแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    }
   }
 
   Future<void> _handleReport(
@@ -138,6 +165,7 @@ class DiscoverScreen extends StatelessWidget {
                       onPass: () => onPass(dogs.first),
                       likedDogs: likedDogs,
                       onToggleFavorite: onToggleFavorite,
+                      allPets: dogs,
                     ),
                   ),
                 ),

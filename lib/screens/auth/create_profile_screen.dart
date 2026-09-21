@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/tag_selector.dart';
 import '../main_screen.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
@@ -312,29 +313,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                         color: Colors.grey.shade700)),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8.0,
-                runSpacing: 4.0,
-                children: availableTraits.map((trait) {
-                  final isSelected = selectedTraits.contains(trait);
-                  return ChoiceChip(
-                    label: Text(trait,
-                        style: TextStyle(
-                            color:
-                                isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal)),
-                    selected: isSelected,
-                    onSelected:
-                        _isSaving ? null : (_) => _toggleTrait(trait),
-                    selectedColor: const Color(0xFFFF9E68),
-                    backgroundColor: Colors.white,
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                  );
-                }).toList(),
+              TagSelector(
+                selectedIds: selectedTraits,
+                onToggle: _toggleTrait,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 32),
               ElevatedButton(

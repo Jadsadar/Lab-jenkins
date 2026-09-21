@@ -21,7 +21,13 @@ service cloud.firestore {
 
     // ห้องแชท: อ่าน/แก้ไขได้เฉพาะคนที่เป็นหนึ่งใน participants เท่านั้น
     match /chats/{chatId} {
-      allow read, update: if request.auth != null
+      // ต้องแยก read ออกจาก update เพราะ ensureChat() เรียก .get() ก่อนสร้างห้องเสมอ
+      // ตอนนั้นเอกสารยังไม่มีอยู่จริง resource เป็น null จะไปอ่าน resource.data ไม่ได้
+      // เลยต้องอนุญาตกรณี "ยังไม่มีเอกสาร" ไว้ด้วย ไม่งั้น Firestore จะตีความว่า error = ปฏิเสธ
+      allow read: if request.auth != null
+        && (!exists(/databases/$(database)/documents/chats/$(chatId))
+            || request.auth.uid in resource.data.participants);
+      allow update: if request.auth != null
         && request.auth.uid in resource.data.participants;
       allow create: if request.auth != null
         && request.auth.uid in request.resource.data.participants;
