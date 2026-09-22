@@ -38,8 +38,12 @@ export class UpdateProfileDto {
   @IsString()
   homeType?: string;
 
+  // require_tld: false เพราะ URL ที่ media module ออกให้ตอน dev ชี้ไปที่ MinIO
+  // (http://localhost:9000/...) ซึ่ง host ไม่มี TLD — ค่าเริ่มต้นของ @IsUrl() จะ
+  // ปฏิเสธทิ้งทั้งที่เป็น URL ที่ระบบเราสร้างเองกับมือ ทำให้อัปรูปโปรไฟล์ไม่ผ่าน
+  // ตลอดใน dev (อัปขึ้น storage สำเร็จ แต่บันทึกลงโปรไฟล์ไม่ได้)
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   profileImageUrl?: string;
 
   // slug ของแท็ก (ต้องตรงกับ traits.slug / lib/utils/pet_tags.dart)
