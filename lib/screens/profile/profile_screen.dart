@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
+import '../../services/users_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
@@ -17,22 +18,51 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
-  final TextEditingController phoneController =
-      TextEditingController(text: currentUserProfile['phone']);
-  final TextEditingController lineController =
-      TextEditingController(text: currentUserProfile['lineId']);
-  final TextEditingController fbController =
-      TextEditingController(text: currentUserProfile['fbLink']);
+  Map<String, dynamic> _profile = Map<String, dynamic>.from(currentUserProfile);
 
-  String currentHomeType = currentUserProfile['homeType'];
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController lineController = TextEditingController();
+  final TextEditingController fbController = TextEditingController();
 
-  late List<String> selectedTraitIds;
+  String currentHomeType = homeTypes.first;
+  List<String> selectedTraitIds = [];
 
   @override
   void initState() {
     super.initState();
-    selectedTraitIds = List<String>.from(currentUserProfile['traits'] ?? []);
+    _load();
+  }
+
+  /// โหลดโปรไฟล์เต็มจาก backend ทุกครั้งที่เปิดหน้า — ไม่พึ่งค่าที่ค้างอยู่ใน
+  /// currentUserProfile (mock Map) เพราะมันจะไม่ถูกอัปเดตหลัง restore session
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final profile = await UsersService.instance.getMe();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        phoneController.text = (profile['phone'] as String?) ?? '';
+        lineController.text = (profile['lineId'] as String?) ?? '';
+        fbController.text = (profile['fbLink'] as String?) ?? '';
+        currentHomeType = homeTypes.contains(profile['homeType'])
+            ? profile['homeType'] as String
+            : homeTypes.first;
+        selectedTraitIds = List<String>.from(profile['traits'] ?? []);
+      });
+      currentUserProfile
+        ..['name'] = profile['name']
+        ..['email'] = profile['email'];
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('โหลดโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   /// ตอนยังไม่กดแก้ไข ช่องพวกนี้จะกดไม่ได้ ถ้าผู้ใช้แตะจะนึกว่าแอปค้าง
@@ -62,18 +92,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  void saveProfileData() {
-    setState(() {
-      currentUserProfile['phone'] = phoneController.text;
-      currentUserProfile['lineId'] = lineController.text;
-      currentUserProfile['fbLink'] = fbController.text;
-      currentUserProfile['homeType'] = currentHomeType;
-      currentUserProfile['traits'] = selectedTraitIds;
-      _isEditing = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!'),
-        duration: Duration(seconds: 2)));
+  Future<void> saveProfileData() async {
+    setState(() => _isSaving = true);
+    try {
+      final updated = await UsersService.instance.updateMe({
+        'phone': phoneController.text,
+        'lineId': lineController.text,
+        'fbLink': fbController.text,
+        'homeType': currentHomeType,
+        'traits': selectedTraitIds,
+      });
+      if (!mounted) return;
+      setState(() {
+        _profile = updated;
+        _isEditing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!'),
+          duration: Duration(seconds: 2)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   void startEditing() {
@@ -94,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final url = await AuthService.instance
           .uploadProfileImage(bytes, contentType: file.mimeType ?? 'image/jpeg');
       if (!mounted) return;
-      setState(() => currentUserProfile['profileImageUrl'] = url);
+      setState(() => _profile['profileImageUrl'] = url);
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('อัปเดตรูปโปรไฟล์แล้ว')));
     } catch (_) {
@@ -139,6 +182,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text('โปรไฟล์ของฉัน',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
+          backgroundColor: Colors.white,
+          elevation: 1,
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -207,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               alignment: Alignment.bottomRight,
               children: [
                 PetAvatar(
-                  imageUrl: currentUserProfile['profileImageUrl'],
+                  imageUrl: _profile['profileImageUrl'],
                   radius: 60,
                   icon: Icons.person,
                 ),
@@ -228,17 +285,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Text(currentUserProfile['name'],
+            Text(_profile['name'] ?? '',
                 style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFFF9E68))),
-            Text(currentUserProfile['email'],
+            Text(_profile['email'] ?? '',
                 style: const TextStyle(fontSize: 14, color: Colors.black54)),
             Chip(
               avatar:
                   const Icon(Icons.location_on, color: Colors.white, size: 16),
-              label: Text(currentUserProfile['province'],
+              label: Text(_profile['province'] ?? '-',
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold)),
               backgroundColor: const Color(0xFFFFB085),
@@ -402,8 +459,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isEditing ? saveProfileData : startEditing,
-                icon: Icon(_isEditing ? Icons.save : Icons.edit),
+                onPressed: _isSaving
+                    ? null
+                    : (_isEditing ? saveProfileData : startEditing),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : Icon(_isEditing ? Icons.save : Icons.edit),
                 label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),

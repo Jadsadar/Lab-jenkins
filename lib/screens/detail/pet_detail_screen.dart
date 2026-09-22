@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../data/demo_seed.dart';
 import '../../services/auth_service.dart';
-import '../../services/chat_service.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
 import '../profile/user_profile_screen.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
-import '../chat/demo_chat_screen.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -35,7 +32,6 @@ class PetDetailScreen extends StatefulWidget {
 
 class _PetDetailScreenState extends State<PetDetailScreen> {
   late bool _isFavorited;
-  bool _isOpeningChat = false;
 
   @override
   void initState() {
@@ -43,7 +39,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     _isFavorited = widget.isFavorited;
   }
 
-  Future<void> _handleChatWithOwner() async {
+  void _handleChatWithOwner() {
     final ownerId = widget.dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
@@ -57,49 +53,17 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       return;
     }
 
-    // DEMO SEED: เจ้าของเป็นผู้ใช้จำลอง เปิดแชทจำลองแทน ไม่แตะ Firestore
-    // ลบเงื่อนไขนี้ทิ้งได้พร้อมกับ lib/data/demo_seed.dart
-    if (demoUsers.containsKey(ownerId)) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DemoChatScreen(
-            petId: widget.dog['id'].toString(),
-            dogName: widget.dog['name'],
-            otherUserId: ownerId,
-            otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatScreen(
+          petId: widget.dog['id'] as String,
+          dogName: widget.dog['name'] as String,
+          otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+          otherUserId: ownerId,
         ),
-      );
-      return;
-    }
-
-    setState(() => _isOpeningChat = true);
-    try {
-      final chatId = await ChatService.instance.ensureChat(
-        otherUserId: ownerId,
-        otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
-        dogName: widget.dog['name'],
-      );
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChatScreen(
-            chatId: chatId,
-            dogName: widget.dog['name'],
-            otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
-            otherUserId: ownerId,
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('เปิดแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
-    } finally {
-      if (mounted) setState(() => _isOpeningChat = false);
-    }
+      ),
+    );
   }
 
   void _handleToggleFavorite() {
@@ -284,16 +248,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         // ปุ่ม ทักแชท
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed:
-                                _isOpeningChat ? null : _handleChatWithOwner,
-                            icon: _isOpeningChat
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.chat),
+                            onPressed: _handleChatWithOwner,
+                            icon: const Icon(Icons.chat),
                             label: const Text(
                               'ทักแชทเจ้าของ',
                               style: TextStyle(

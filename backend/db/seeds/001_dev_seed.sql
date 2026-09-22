@@ -50,25 +50,25 @@ DECLARE
   conv uuid;
 BEGIN
   -- ---------- ผู้ใช้ ----------
-  INSERT INTO users (email, password_hash, display_name, bio, location, email_verified_at)
-  VALUES ('somchai@petpaws.dev', pw, 'สมชาย ใจดี',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, email_verified_at)
+  VALUES ('somchai', 'somchai@petpaws.dev', pw, 'สมชาย ใจดี',
           'เลี้ยงหมามา 10 ปี มีบ้านมีสวน ยินดีให้คำปรึกษาคนเลี้ยงมือใหม่',
           'กรุงเทพมหานคร', now())
   RETURNING id INTO somchai;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location, email_verified_at)
-  VALUES ('malee@petpaws.dev', pw, 'มาลี สดใส',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, email_verified_at)
+  VALUES ('malee', 'malee@petpaws.dev', pw, 'มาลี สดใส',
           'อาสาสมัครช่วยแมวจร หาบ้านให้น้องมาแล้วกว่า 30 ตัว',
           'เชียงใหม่', now())
   RETURNING id INTO malee;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location, email_verified_at)
-  VALUES ('nattapong@petpaws.dev', pw, 'ณัฐพงศ์ พร้อมรับ',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, email_verified_at)
+  VALUES ('nattapong', 'nattapong@petpaws.dev', pw, 'ณัฐพงศ์ พร้อมรับ',
           'อยากได้เพื่อนสักตัวไว้วิ่งด้วยกันตอนเช้า', 'กรุงเทพมหานคร', now())
   RETURNING id INTO nattapong;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('ploy@petpaws.dev', pw, 'พลอย รักสัตว์',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('ploy', 'ploy@petpaws.dev', pw, 'พลอย รักสัตว์',
           'อยู่คอนโด มองหาน้องแมวตัวเล็ก ๆ', 'ภูเก็ต')
   RETURNING id INTO ploy;
 

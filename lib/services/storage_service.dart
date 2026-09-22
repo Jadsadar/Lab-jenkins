@@ -1,20 +1,23 @@
 import 'dart:typed_data';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import '../shared/api_client.dart';
 
-/// อัปโหลดรูปภาพทั่วไป (ที่ไม่ใช่รูปโปรไฟล์ผู้ใช้) ขึ้น Firebase Storage
+/// อัปโหลดรูปภาพสัตว์เลี้ยง (ไม่ใช่รูปโปรไฟล์ผู้ใช้ — อันนั้นอยู่ใน AuthService)
+/// ผ่าน POST /media/upload ซึ่งเก็บไฟล์ลง MinIO แล้วคืน URL สาธารณะกลับมา
 class StorageService {
   StorageService._();
   static final StorageService instance = StorageService._();
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ApiClient _api = ApiClient.instance;
 
-  /// อัปโหลดรูปโปรไฟล์สัตว์เลี้ยง คืนค่า download URL ของรูปที่อัปโหลดสำเร็จ
-  Future<String> uploadPetImage(Uint8List bytes,
-      {String contentType = 'image/jpeg'}) async {
-    final id = DateTime.now().microsecondsSinceEpoch.toString();
-    final ref = _storage.ref('pet_images/$id.jpg');
-    await ref.putData(bytes, SettableMetadata(contentType: contentType));
-    return ref.getDownloadURL();
+  /// อัปโหลดรูปสัตว์เลี้ยง คืนค่า URL ของรูปที่อัปโหลดสำเร็จ
+  Future<String> uploadPetImage(Uint8List bytes, {String contentType = 'image/jpeg'}) async {
+    final res = await _api.uploadFile(
+      '/media/upload',
+      bytes: bytes,
+      filename: 'pet.${contentType.split('/').last}',
+      contentType: contentType,
+    ) as Map<String, dynamic>;
+    return res['url'] as String;
   }
 }

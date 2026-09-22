@@ -87,56 +87,56 @@ BEGIN
   -- ==========================================================================
   -- ผู้ใช้ 10 คน
   -- ==========================================================================
-  INSERT INTO users (email, password_hash, display_name, bio, location, home_type, email_verified_at)
-  VALUES ('testuser01@petpaws.test', pw, 'ทดสอบ หนึ่ง',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, home_type, email_verified_at)
+  VALUES ('testuser01', 'testuser01@petpaws.test', pw, 'ทดสอบ หนึ่ง',
           'เจ้าของหลายตัว มีข้อมูลครบทุกช่อง ใช้ทดสอบหน้าโปรไฟล์แบบเต็ม',
           'กรุงเทพมหานคร', 'detached_house', now())
   RETURNING id INTO u01;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location, home_type, email_verified_at)
-  VALUES ('testuser02@petpaws.test', pw, 'ทดสอบ สอง',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, home_type, email_verified_at)
+  VALUES ('testuser02', 'testuser02@petpaws.test', pw, 'ทดสอบ สอง',
           'มีทั้งประกาศที่เปิดรับและกำลังคุยอยู่ (pending)', 'เชียงใหม่', 'condo', now())
   RETURNING id INTO u02;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser03@petpaws.test', pw, 'ทดสอบ สาม',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser03', 'testuser03@petpaws.test', pw, 'ทดสอบ สาม',
           'ผู้รับเลี้ยงล้วน ไม่มีประกาศของตัวเอง', 'กรุงเทพมหานคร')
   RETURNING id INTO u03;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser04@petpaws.test', pw, 'ทดสอบ สี่',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser04', 'testuser04@petpaws.test', pw, 'ทดสอบ สี่',
           'อยู่คนละภาคกับส่วนใหญ่ ใช้ทดสอบ proximity rank 2', 'ภูเก็ต')
   RETURNING id INTO u04;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser05@petpaws.test', pw, 'ทดสอบ ห้า',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser05', 'testuser05@petpaws.test', pw, 'ทดสอบ ห้า',
           'อยู่ภาคเหนือเดียวกับทดสอบสอง แต่คนละจังหวัด', 'เชียงราย')
   RETURNING id INTO u05;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser06@petpaws.test', pw, 'ทดสอบ หก',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser06', 'testuser06@petpaws.test', pw, 'ทดสอบ หก',
           'ประกาศของคนนี้จะถูกรายงาน 2 ครั้ง', 'สงขลา')
   RETURNING id INTO u06;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser07@petpaws.test', pw, 'ทดสอบ เจ็ด',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser07', 'testuser07@petpaws.test', pw, 'ทดสอบ เจ็ด',
           'จะกดบล็อกทดสอบแปด', 'นนทบุรี')
   RETURNING id INTO u07;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser08@petpaws.test', pw, 'ทดสอบ แปด',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser08', 'testuser08@petpaws.test', pw, 'ทดสอบ แปด',
           'ถูกทดสอบเจ็ดบล็อก', 'ระยอง')
   RETURNING id INTO u08;
 
-  INSERT INTO users (email, password_hash, display_name, bio, location)
-  VALUES ('testuser09@petpaws.test', pw, 'ทดสอบ เก้า',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location)
+  VALUES ('testuser09', 'testuser09@petpaws.test', pw, 'ทดสอบ เก้า',
           'ประกาศของคนนี้จะถูกทำเครื่องหมายว่าได้บ้านแล้ว', 'อุดรธานี')
   RETURNING id INTO u09;
 
   -- บัญชีถูกระงับ — ทดสอบว่าประกาศของบัญชีนี้ต้องหายจาก deck ของทุกคน
   -- แม้ pets.status จะเป็น available ก็ตาม (deck_feed กรอง u.is_suspended ด้วย)
-  INSERT INTO users (email, password_hash, display_name, bio, location, is_suspended)
-  VALUES ('testuser10@petpaws.test', pw, 'ทดสอบ สิบ',
+  INSERT INTO users (username, email, password_hash, display_name, bio, location, is_suspended)
+  VALUES ('testuser10', 'testuser10@petpaws.test', pw, 'ทดสอบ สิบ',
           'บัญชีนี้ถูกระงับ ใช้ทดสอบว่า deck กรองออกจริง', 'ขอนแก่น', true)
   RETURNING id INTO u10;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/mock_data.dart';
+import '../../services/pet_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../utils/pet_tags.dart';
@@ -66,8 +67,11 @@ class _EditDogScreenState extends State<EditDogScreen> {
         imageUrl =
             await StorageService.instance.uploadPetImage(_pickedImageBytes!);
       }
-      final updatedDog = {
-        ...widget.dog,
+      // ส่งเฉพาะ field ที่แก้ไขได้ไปให้ backend อัปเดตจริง (ไม่ใช่แค่สร้าง Map
+      // ในเครื่องแล้วหลอกตัวเองว่าบันทึกแล้ว) แล้วใช้ผลลัพธ์ที่ server ตอบกลับมา
+      // เป็นความจริงชุดใหม่ — กัน field ที่ backend คุมเอง (เช่น likeCount, status
+      // ที่ควรแก้ผ่านปุ่มสถานะแยกต่างหาก) หลุดเข้ามาปนโดยไม่ตั้งใจ
+      final updatedDog = await PetService.instance.update(widget.dog['id'] as String, {
         "name": nameController.text,
         "breed":
             breedController.text.isEmpty ? "พันทาง" : breedController.text,
@@ -80,7 +84,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
             ? "ไม่มีข้อมูล"
             : storyController.text,
         "imageUrl": imageUrl,
-      };
+      });
       widget.onSave(updatedDog);
       if (!mounted) return;
       Navigator.pop(context);
@@ -89,7 +93,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/tag_selector.dart';
-import '../main_screen.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
 /// ไม่มีปุ่มย้อนกลับ เพราะเป็นขั้นตอนบังคับก่อนเข้าใช้งานแอป
@@ -89,11 +88,13 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       currentUserProfile['homeType'] = selectedHomeType;
       currentUserProfile['traits'] = List<String>.from(selectedTraitIds);
       if (imageUrl != null) currentUserProfile['profileImageUrl'] = imageUrl;
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
-      );
+      // ไม่ต้อง Navigator.push เอง — completeProfile() ยิง event เข้า authStateChanges
+      // แล้ว AuthGate จะสลับไป MainScreen ให้เอง (แบบเดียวกับ login_screen)
+      //
+      // ถ้า pushReplacement ที่นี่ด้วยจะกลายเป็นว่า MainScreen ถูก mount พร้อมกัน 2 ตัว
+      // (ตัวของ AuthGate + ตัวที่ push เอง) โหลดข้อมูล/เปิด polling ซ้อนกันสองชุด
+      // ซ้ำร้ายมันไปแทนที่ route ของ AuthGate ทิ้ง ทำให้ logout/session หมดอายุ
+      // พากลับไปหน้า login ไม่ได้อีกเลย
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

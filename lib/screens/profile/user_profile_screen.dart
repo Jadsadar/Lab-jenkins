@@ -1,8 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/demo_seed.dart';
+import '../../services/users_service.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
@@ -10,10 +9,11 @@ import '../detail/pet_detail_screen.dart';
 
 /// หน้าโปรไฟล์ของผู้ใช้คนอื่น เปิดได้จากประกาศสัตว์เลี้ยงหรือจากห้องแชท
 ///
-/// ถ้า uid ตรงกับ demoUsers (ดู lib/data/demo_seed.dart) จะใช้ข้อมูลจำลองแทน
-/// เพราะยังไม่มี collection pets ใน Firestore จริง — ลบเงื่อนไขนี้ทิ้งได้เมื่อต่อจริงแล้ว
-/// ไม่งั้นจะอ่านโปรไฟล์จาก Firestore ตามปกติ ส่วนประกาศของเจ้าของส่งเข้ามาจากหน้าที่เรียก
-class UserProfileScreen extends StatelessWidget {
+/// ประกาศของเจ้าของคนนี้ต้องส่งเข้ามาจากหน้าที่เรียก (ownerPets) เพราะ backend
+/// ไม่มี endpoint "ประกาศทั้งหมดของ uid นี้" แยกต่างหาก (ใช้ GET /pets/mine
+/// ได้เฉพาะของตัวเอง) — ถ้าหน้าที่เรียกไม่รู้จักประกาศอื่นของเขา (เช่นเปิดจาก
+/// ห้องแชทตรง ๆ) จะเห็นแค่ข้อความ "ยังไม่มีประกาศอื่นให้ดู" ไปก่อน
+class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({
     super.key,
     required this.uid,
@@ -26,45 +26,75 @@ class UserProfileScreen extends StatelessWidget {
   final List<Map<String, dynamic>> ownerPets;
 
   @override
-  Widget build(BuildContext context) {
-    final demoProfile = demoUsers[uid];
-    if (demoProfile != null) {
-      // DEMO SEED: ดึงประกาศทั้งหมดของเจ้าของจำลองจาก demoPets เองเสมอ
-      // ไม่พึ่งพา ownerPets ที่หน้าเรียกมาส่งมาให้ เพราะบางที่ (เช่นหน้าแชท)
-      // ไม่รู้จักรายการสัตว์เลี้ยงทั้งหมดของเจ้าของ จึงส่งมาว่างเปล่า
-      final petsOfOwner =
-          demoPets.where((pet) => pet['ownerId'] == uid).toList();
-      return _scaffold(context, demoProfile, petsOfOwner);
-    }
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
 
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: const Color(0xFFFFF6F0),
-            appBar: _appBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        final profile = snapshot.data?.data() ?? const <String, dynamic>{};
-        return _scaffold(context, profile, ownerPets);
-      },
-    );
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  Map<String, dynamic>? _profile;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    try {
+      final profile = await UsersService.instance.getPublicProfile(widget.uid);
+      if (!mounted) return;
+      setState(() => _profile = profile);
+    } catch (_) {
+      if (mounted) setState(() => _hasError = true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   AppBar _appBar() => AppBar(
         title: const Text('โปรไฟล์ผู้ใช้',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
         elevation: 1,
         centerTitle: true,
       );
 
-  Widget _scaffold(BuildContext context, Map<String, dynamic> profile,
-      List<Map<String, dynamic>> pets) {
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFF6F0),
+        appBar: _appBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_hasError || _profile == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFF6F0),
+        appBar: _appBar(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('โหลดโปรไฟล์ไม่สำเร็จ', style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _load, child: const Text('ลองใหม่')),
+            ],
+          ),
+        ),
+      );
+    }
+    return _scaffold(context, _profile!, widget.ownerPets);
+  }
+
+  Widget _scaffold(
+      BuildContext context, Map<String, dynamic> profile, List<Map<String, dynamic>> pets) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF6F0),
       appBar: _appBar(),
@@ -78,16 +108,13 @@ class UserProfileScreen extends StatelessWidget {
           const Divider(height: 40, color: Colors.black12),
           Text('ประกาศหาบ้านของผู้ใช้นี้ (${pets.length})',
               style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFFF9E68))),
+                  fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
           const SizedBox(height: 16),
           if (pets.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text('ยังไม่มีประกาศอื่นให้ดู',
-                    style: TextStyle(color: Colors.black45)),
+                child: Text('ยังไม่มีประกาศอื่นให้ดู', style: TextStyle(color: Colors.black45)),
               ),
             )
           else
@@ -102,27 +129,18 @@ class UserProfileScreen extends StatelessWidget {
     final province = profile['province'] as String?;
     return Column(
       children: [
-        PetAvatar(
-          imageUrl: profile['profileImageUrl'] as String?,
-          radius: 48,
-          icon: Icons.person,
-        ),
+        PetAvatar(imageUrl: profile['profileImageUrl'] as String?, radius: 48, icon: Icons.person),
         const SizedBox(height: 12),
-        Text(name == null || name.isEmpty ? fallbackName : name,
-            style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87)),
+        Text(name == null || name.isEmpty ? widget.fallbackName : name,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
         if (province != null && province.isNotEmpty) ...[
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.location_on,
-                  size: 16, color: Color(0xFFFF9E68)),
+              const Icon(Icons.location_on, size: 16, color: Color(0xFFFF9E68)),
               const SizedBox(width: 4),
-              Text(province,
-                  style: const TextStyle(color: Colors.black54, fontSize: 14)),
+              Text(province, style: const TextStyle(color: Colors.black54, fontSize: 14)),
             ],
           ),
         ],
@@ -142,13 +160,10 @@ class UserProfileScreen extends StatelessWidget {
         children: tagLabels(ids)
             .map((label) => Chip(
                   label: Text(label,
-                      style: const TextStyle(
-                          color: Color(0xFFFF9E68),
-                          fontWeight: FontWeight.bold)),
+                      style: const TextStyle(color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
                   backgroundColor: Colors.white,
                   side: BorderSide.none,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ))
             .toList(),
       ),
@@ -157,13 +172,12 @@ class UserProfileScreen extends StatelessWidget {
 
   void _copyToClipboard(BuildContext context, String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('คัดลอก $label แล้ว'),
-        duration: const Duration(seconds: 1)));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('คัดลอก $label แล้ว'), duration: const Duration(seconds: 1)));
   }
 
   /// แสดงเฉพาะช่องทางที่เจ้าของกรอกไว้เอง ไม่โชว์เบอร์โทรในหน้าสาธารณะ
-  /// LINE กับ Facebook กดคัดลอกได้ เพราะเป็นโปรไฟล์ของคนอื่น ไม่ใช่ของตัวเอง
+  /// (backend เองก็ไม่ส่ง phone มาให้ในโปรไฟล์สาธารณะอยู่แล้ว — ดู users.service.ts)
   Widget _contact(BuildContext context, Map<String, dynamic> profile) {
     final lineId = (profile['lineId'] as String?)?.trim() ?? '';
     final fbLink = (profile['fbLink'] as String?)?.trim() ?? '';
@@ -171,8 +185,7 @@ class UserProfileScreen extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
           if (lineId.isNotEmpty)
@@ -220,8 +233,7 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _petTile(BuildContext context, Map<String, dynamic> pet,
-      List<Map<String, dynamic>> pets) {
+  Widget _petTile(BuildContext context, Map<String, dynamic> pet, List<Map<String, dynamic>> pets) {
     final isAdopted = pet['status'] == 'ถูกรับเลี้ยงแล้ว';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -232,18 +244,12 @@ class UserProfileScreen extends StatelessWidget {
         contentPadding: const EdgeInsets.all(12),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: PetNetworkImage(
-            imageUrl: pet['imageUrl'] as String?,
-            width: 56,
-            height: 56,
-            iconSize: 28,
-          ),
+          child: PetNetworkImage(imageUrl: pet['imageUrl'] as String?, width: 56, height: 56, iconSize: 28),
         ),
         title: Text(pet['name']?.toString() ?? 'ไม่ระบุชื่อ',
             style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
-            '${pet['breed'] ?? '-'} · ${pet['age'] ?? '-'}'
-            '${isAdopted ? ' · ถูกรับเลี้ยงแล้ว' : ''}',
+            '${pet['breed'] ?? '-'} · ${pet['age'] ?? '-'}${isAdopted ? ' · ถูกรับเลี้ยงแล้ว' : ''}',
             style: const TextStyle(fontSize: 13)),
         trailing: const Icon(Icons.chevron_right, color: Color(0xFFFF9E68)),
         onTap: () => Navigator.push(

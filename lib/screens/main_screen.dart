@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../data/demo_seed.dart';
-import '../data/mock_data.dart';
 import '../services/chat_service.dart';
-import '../utils/pet_ranking.dart';
+import '../services/pet_service.dart';
 import 'chat/chat_inbox_screen.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
@@ -18,159 +16,289 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _petService = PetService.instance;
+
   int _selectedIndex = 0;
+  bool _isLoading = true;
+  String? _loadError;
 
-  // DEMO SEED: ใช้ demoPets เติมฟีดไปก่อน เพราะยังไม่มี collection pets ใน Firestore
-  // ลบบรรทัดนี้แล้วเปลี่ยนเป็น [] เมื่อต่อ Firestore จริงแล้ว (ดู lib/data/demo_seed.dart)
-  List<Map<String, dynamic>> allDogs = List<Map<String, dynamic>>.from(demoPets);
+  List<Map<String, dynamic>> allDogs = [];
   List<Map<String, dynamic>> myPostedDogs = [];
-
   List<Map<String, dynamic>> likedDogs = [];
   List<Map<String, dynamic>> passedDogs = [];
 
-  void onLike(Map<String, dynamic> dog) => setState(() {
-        likedDogs.add(dog);
-        allDogs.remove(dog);
-      });
+  String? _deckCursor;
+  bool _deckHasMore = true;
+  bool _isFetchingMore = false;
 
-  void onPass(Map<String, dynamic> dog) => setState(() {
-        passedDogs.add(dog);
-        allDogs.remove(dog);
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final results = await Future.wait([
+        _petService.deck(),
+        _petService.mine(),
+        _petService.myLikes(),
+      ]);
+      final deckPage = results[0] as DeckPage;
+      setState(() {
+        allDogs = deckPage.dogs;
+        _deckCursor = deckPage.nextCursor;
+        _deckHasMore = deckPage.hasMore;
+        myPostedDogs = results[1] as List<Map<String, dynamic>>;
+        likedDogs = results[2] as List<Map<String, dynamic>>;
       });
+    } catch (e) {
+      setState(() => _loadError = 'โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// ดึงการ์ดหน้าถัดไปมาต่อท้ายเงียบ ๆ เมื่อเหลือน้อย (prefetch ตาม SKILL.md)
+  Future<void> _maybeFetchMoreDeck() async {
+    if (_isFetchingMore || !_deckHasMore || allDogs.length > 3) return;
+    _isFetchingMore = true;
+    try {
+      final page = await _petService.deck(cursor: _deckCursor);
+      if (!mounted) return;
+      setState(() {
+        allDogs = [...allDogs, ...page.dogs];
+        _deckCursor = page.nextCursor;
+        _deckHasMore = page.hasMore;
+      });
+    } catch (_) {
+      // เงียบไว้ — ถ้าโหลดเพิ่มไม่สำเร็จ ผู้ใช้แค่เห็นการ์ดน้อยลง ไม่ใช่ error ที่ต้องขัดจังหวะ
+    } finally {
+      _isFetchingMore = false;
+    }
+  }
+
+  void _showError(String message) {
+    _messengerKey.currentState?.clearSnackBars();
+    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void onLike(Map<String, dynamic> dog) {
+    setState(() {
+      likedDogs.add(dog);
+      allDogs.remove(dog);
+    });
+    _maybeFetchMoreDeck();
+    _petService.like(dog['id'] as String).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        likedDogs.remove(dog);
+        allDogs.insert(0, dog);
+      });
+      _showError('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    });
+  }
+
+  void onPass(Map<String, dynamic> dog) {
+    setState(() {
+      passedDogs.add(dog);
+      allDogs.remove(dog);
+    });
+    _maybeFetchMoreDeck();
+    _petService.pass(dog['id'] as String).catchError((_) {
+      // ปัดซ้ายพลาดไม่ร้ายแรง แค่ตัวนี้อาจโผล่มาให้เห็นซ้ำในเซสชันหน้า ไม่ต้องแจ้งเตือน
+    });
+  }
 
   void onUndoPass() {
-    if (passedDogs.isNotEmpty) {
-      setState(() {
-        allDogs.insert(0, passedDogs.removeLast());
-      });
-    }
+    if (passedDogs.isEmpty) return;
+    final dog = passedDogs.removeLast();
+    setState(() => allDogs.insert(0, dog));
+    _petService.unpass(dog['id'] as String).catchError((_) {});
   }
 
   void onAddDog(Map<String, dynamic> newDog) =>
       setState(() => myPostedDogs.insert(0, newDog));
 
-  void onDeleteDog(Map<String, dynamic> dog) => setState(() {
-        myPostedDogs.remove(dog);
-      });
+  Future<void> onDeleteDog(Map<String, dynamic> dog) async {
+    final id = dog['id'] as String;
+    try {
+      await _petService.delete(id);
+      if (!mounted) return;
+      setState(() => myPostedDogs.remove(dog));
+    } catch (_) {
+      if (mounted) _showError('ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
 
   void onEditDog(Map<String, dynamic> updatedDog) => setState(() {
-        final index =
-            myPostedDogs.indexWhere((d) => d['id'] == updatedDog['id']);
+        final index = myPostedDogs.indexWhere((d) => d['id'] == updatedDog['id']);
         if (index != -1) myPostedDogs[index] = updatedDog;
       });
 
-  void onChangeStatus(Map<String, dynamic> dog, String newStatus) =>
+  Future<void> onChangeStatus(Map<String, dynamic> dog, String newStatus) async {
+    final id = dog['id'] as String;
+    final previousStatus = dog['status'];
+    setState(() {
+      final index = myPostedDogs.indexWhere((d) => d['id'] == id);
+      if (index != -1) myPostedDogs[index]['status'] = newStatus;
+    });
+    try {
+      final updated = await _petService.update(id, {'status': newStatus});
+      if (!mounted) return;
       setState(() {
-        final index = myPostedDogs.indexWhere((d) => d['id'] == dog['id']);
-        if (index != -1) myPostedDogs[index]['status'] = newStatus;
+        final index = myPostedDogs.indexWhere((d) => d['id'] == id);
+        if (index != -1) myPostedDogs[index] = updated;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        final index = myPostedDogs.indexWhere((d) => d['id'] == id);
+        if (index != -1) myPostedDogs[index]['status'] = previousStatus;
+      });
+      _showError('เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
 
-  // ฟังก์ชันสำหรับการกดสนใจรับเลี้ยง
-  void onToggleFavoriteDog(Map<String, dynamic> dog) => setState(() {
-        final exists = likedDogs.any((d) => d['id'] == dog['id']);
+  // ฟังก์ชันสำหรับการกดสนใจรับเลี้ยง (หัวใจในหน้ารายละเอียด/การ์ด) — toggle
+  // สลับกับปุ่มถูกใจตอนปัด (onLike) แต่ทั้งคู่จบที่ POST/DELETE /pets/:id/like เหมือนกัน
+  void onToggleFavoriteDog(Map<String, dynamic> dog) {
+    final id = dog['id'] as String;
+    final exists = likedDogs.any((d) => d['id'] == id);
+    setState(() {
+      if (exists) {
+        likedDogs.removeWhere((d) => d['id'] == id);
+      } else {
+        likedDogs.add(dog);
+        allDogs.removeWhere((d) => d['id'] == id);
+      }
+    });
+    final future = exists ? _petService.unlike(id) : _petService.like(id);
+    future.catchError((_) {
+      if (!mounted) return;
+      setState(() {
         if (exists) {
-          likedDogs.removeWhere((d) => d['id'] == dog['id']);
-        } else {
           likedDogs.add(dog);
-          allDogs.removeWhere((d) => d['id'] == dog['id']);
+        } else {
+          likedDogs.removeWhere((d) => d['id'] == id);
         }
       });
+      _showError('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // จัดลำดับฟีดให้สัตว์เลี้ยงที่แท็กตรงกับผู้ใช้ขึ้นก่อน
-    final feed = sortPetsForUser(
-      allDogs,
-      userTagIds: List<String>.from(currentUserProfile['traits'] ?? []),
-      userProvince: currentUserProfile['province'] ?? '',
-    );
-
-    final List<Widget> screens = [
-      DiscoverScreen(
-        dogs: feed,
-        onLike: onLike,
-        onPass: onPass,
-        onUndoPass: onUndoPass,
-        canUndo: passedDogs.isNotEmpty,
-        likedDogs: likedDogs,
-        onToggleFavorite: onToggleFavoriteDog,
-      ),
-      FavoritesScreen(
-        likedDogs: likedDogs,
-        myPostedDogs: myPostedDogs,
-        onToggleFavorite: onToggleFavoriteDog,
-      ),
-      const ChatInboxScreen(),
-      UploadScreen(
-        onAddDog: onAddDog,
-        myPostedDogs: myPostedDogs,
-        onDeleteDog: onDeleteDog,
-        onEditDog: onEditDog,
-        onChangeStatus: onChangeStatus,
-        likedDogs: likedDogs,
-        onToggleFavorite: onToggleFavoriteDog,
-      ),
-      const ProfileScreen(),
-    ];
-
-    return Scaffold(
-      body: screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFFFF9E68),
-        unselectedItemColor: Colors.grey.shade400,
-        backgroundColor: Colors.white,
-        items: [
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.search), label: 'ค้นหา'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.favorite), label: 'ถูกใจ'),
-          // ไอคอนแชท + badge แจ้งเตือน unread (อยู่ตรงกลางของบาร์)
-          BottomNavigationBarItem(
-            label: 'แชท',
-            icon: StreamBuilder<int>(
-              stream: ChatService.instance.unreadChatCountStream(),
-              builder: (context, snapshot) {
-                final unread = snapshot.data ?? 0;
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.chat_bubble_outline),
-                    if (unread > 0)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: Colors.redAccent,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '$unread',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold),
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Scaffold(
+        body: _buildBody(),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: (index) => setState(() => _selectedIndex = index),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFFFF9E68),
+          unselectedItemColor: Colors.grey.shade400,
+          backgroundColor: Colors.white,
+          items: [
+            const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'ค้นหา'),
+            const BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'ถูกใจ'),
+            BottomNavigationBarItem(
+              label: 'แชท',
+              icon: StreamBuilder<int>(
+                stream: ChatService.instance.unreadChatCountStream(),
+                builder: (context, snapshot) {
+                  final unread = snapshot.data ?? 0;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline),
+                      if (unread > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: const BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text('$unread',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: 'โปรไฟล์'),
-        ],
+            const BottomNavigationBarItem(icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
+            const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'โปรไฟล์'),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_loadError!, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadInitialData, child: const Text('ลองใหม่')),
+          ],
+        ),
+      );
+    }
+
+    // ใช้ IndexedStack ไม่ใช่ list สลับ widget ตรง ๆ เพื่อให้แต่ละแท็บคง state
+    // ของตัวเองไว้ (เช่น scroll position) ตอนสลับไปมา แทนที่จะ rebuild ใหม่ทุกครั้ง
+    return IndexedStack(
+      index: _selectedIndex,
+      children: [
+        DiscoverScreen(
+          dogs: allDogs,
+          onLike: onLike,
+          onPass: onPass,
+          onUndoPass: onUndoPass,
+          canUndo: passedDogs.isNotEmpty,
+          likedDogs: likedDogs,
+          onToggleFavorite: onToggleFavoriteDog,
+        ),
+        FavoritesScreen(
+          likedDogs: likedDogs,
+          myPostedDogs: myPostedDogs,
+          onToggleFavorite: onToggleFavoriteDog,
+        ),
+        const ChatInboxScreen(),
+        UploadScreen(
+          onAddDog: onAddDog,
+          myPostedDogs: myPostedDogs,
+          onDeleteDog: onDeleteDog,
+          onEditDog: onEditDog,
+          onChangeStatus: onChangeStatus,
+          likedDogs: likedDogs,
+          onToggleFavorite: onToggleFavoriteDog,
+        ),
+        const ProfileScreen(),
+      ],
     );
   }
 }

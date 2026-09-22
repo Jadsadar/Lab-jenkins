@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/mock_data.dart';
-import '../../services/auth_service.dart';
+import '../../services/pet_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_image_picker.dart';
@@ -70,16 +69,17 @@ class _UploadScreenState extends State<UploadScreen> {
 
     setState(() => _isSubmitting = true);
     try {
+      // อัปโหลดรูปให้เสร็จก่อนเรียกสร้างประกาศเสมอ ถ้าเรียกสลับกันแล้วรูปพัง
+      // จะได้ประกาศรูปแตกค้างอยู่ใน deck
       String imageUrl = '';
       if (_pickedImageBytes != null) {
         imageUrl =
             await StorageService.instance.uploadPetImage(_pickedImageBytes!);
       }
-      final currentUser = AuthService.instance.currentUser;
-      final newDog = {
-        "id": DateTime.now().millisecondsSinceEpoch.toString(),
-        "ownerId": currentUser?.uid,
-        "ownerName": currentUser?.displayName ?? currentUserProfile['name'],
+      // ให้ backend เป็นคนสร้าง id/ownerId/ownerName จริง ๆ แทนการปลอมขึ้นเอง
+      // (เดิม id มาจาก millisecondsSinceEpoch ในเครื่อง ซึ่งไม่ใช่ id จริงและ
+      // ทำให้โพสต์นี้ไม่เคยถูกบันทึกไว้ที่ไหนที่บัญชีอื่นจะเห็นได้เลย)
+      final newDog = await PetService.instance.create({
         "name": nameController.text,
         "breed":
             breedController.text.isEmpty ? "พันทาง" : breedController.text,
@@ -92,8 +92,7 @@ class _UploadScreenState extends State<UploadScreen> {
             ? "กำลังรอคนใจดีมารับไปดูแลอยู่ครับ/ค่ะ"
             : storyController.text,
         "imageUrl": imageUrl,
-        "status": "ยังไม่ถูกรับเลี้ยง",
-      };
+      });
       widget.onAddDog(newDog);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -111,7 +110,7 @@ class _UploadScreenState extends State<UploadScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(content: Text('ลงประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

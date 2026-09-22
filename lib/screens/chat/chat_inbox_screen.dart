@@ -1,27 +1,38 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 import 'chat_screen.dart';
 
-class ChatInboxScreen extends StatelessWidget {
-  /// ถ้าระบุ = โหมดเจ้าของดูแชทของสัตว์เลี้ยงตัวนี้ตัวเดียว
-  /// ถ้าไม่ระบุ (null) = โหมดข้อความทั้งหมดของฉัน (ทุกตัว)
+class ChatInboxScreen extends StatefulWidget {
+  /// ถ้าระบุ = โหมดเจ้าของดูแชทของ "ประกาศนี้" ตัวเดียว (กรองด้วยชื่อสัตว์
+  /// เพราะ ChatInboxScreen เดิมออกแบบมารับแค่ dogName ไม่ใช่ petId — ยังมีบั๊กเดิม
+  /// ที่สัตว์ชื่อซ้ำกันจะกรองปนกันได้ ดูรายละเอียดใน ROADMAP.md)
+  /// ถ้าไม่ระบุ (null) = โหมดข้อความทั้งหมดของฉัน
   final String? dogName;
 
   const ChatInboxScreen({super.key, this.dogName});
 
-  String _otherUid(Map<String, dynamic> data, String myUid) {
-    final participants = List<String>.from(data['participants'] as List);
-    return participants.firstWhere((id) => id != myUid, orElse: () => '');
+  @override
+  State<ChatInboxScreen> createState() => _ChatInboxScreenState();
+}
+
+class _ChatInboxScreenState extends State<ChatInboxScreen> {
+  /// สร้าง polling stream ครั้งเดียวตอน initState ห้ามสร้างใน build() เด็ดขาด —
+  /// หน้านี้อยู่ใน IndexedStack ของ MainScreen ซึ่ง rebuild ทุกครั้งที่ปัดการ์ด/
+  /// สลับแท็บ ถ้าสร้างใหม่ทุก build จะได้ polling loop ซ้อนกันจนแอปค้าง
+  late final Stream<List<Map<String, dynamic>>> _chatsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _chatsStream = ChatService.instance.pollChats(petName: widget.dogName);
   }
 
-  String _formatTime(Timestamp? ts) {
-    if (ts == null) return '';
-    final date = ts.toDate();
+  String _formatTime(String? iso) {
+    if (iso == null) return '';
+    final date = DateTime.parse(iso).toLocal();
     final now = DateTime.now();
     if (date.year == now.year && date.month == now.month && date.day == now.day) {
       return DateFormat.Hm().format(date);
@@ -31,8 +42,6 @@ class ChatInboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myUid = AuthService.instance.currentUser!.uid;
-
     return Scaffold(
       backgroundColor: const Color(0xFFFFF6F0),
       appBar: AppBar(
@@ -41,10 +50,11 @@ class ChatInboxScreen extends StatelessWidget {
           children: [
             const Text('กล่องข้อความ',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68),
-                    fontSize: 18)),
-            Text(dogName == null ? 'ข้อความทั้งหมด' : 'สัตว์เลี้ยง: $dogName',
+                    fontWeight: FontWeight.bold, color: Color(0xFFFF9E68), fontSize: 18)),
+            Text(
+                widget.dogName == null
+                    ? 'ข้อความทั้งหมด'
+                    : 'สัตว์เลี้ยง: ${widget.dogName}',
                 style: const TextStyle(fontSize: 12, color: Colors.black45)),
           ],
         ),
@@ -52,26 +62,19 @@ class ChatInboxScreen extends StatelessWidget {
         iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
         elevation: 1,
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: dogName == null
-            ? ChatService.instance.myChatsStream()
-            : ChatService.instance.chatsForDogStream(dogName!),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _chatsStream,
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(
-                child: Text('โหลดกล่องข้อความไม่สำเร็จ ลองใหม่อีกครั้ง'));
-          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final chats = snapshot.data!.docs;
+          final chats = snapshot.data!;
           if (chats.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.chat_bubble_outline,
-                      size: 64, color: Colors.black12),
+                  Icon(Icons.chat_bubble_outline, size: 64, color: Colors.black12),
                   SizedBox(height: 16),
                   Text('ยังไม่มีคนทักมาเลย',
                       style: TextStyle(fontSize: 16, color: Colors.grey)),
@@ -87,83 +90,67 @@ class ChatInboxScreen extends StatelessWidget {
             itemCount: chats.length,
             separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
             itemBuilder: (context, index) {
-              final doc = chats[index];
-              final data = doc.data();
-              final otherUid = _otherUid(data, myUid);
-              final names =
-                  data['participantNames'] as Map<String, dynamic>? ?? {};
-              final otherName = names[otherUid] as String? ?? 'ผู้สนใจรับเลี้ยง';
-              final chatDogName = data['dogName'] as String? ?? dogName ?? '';
-              final lastMessage = data['lastMessage'] as String? ?? '';
-              final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-              final lastReadMap =
-                  data['lastReadAt'] as Map<String, dynamic>?;
-              final lastReadAt = lastReadMap?[myUid] as Timestamp?;
-              final isUnread = lastMessage.isNotEmpty &&
-                  lastMessageAt != null &&
-                  (lastReadAt == null ||
-                      lastMessageAt.compareTo(lastReadAt) > 0);
+              final chat = chats[index];
+              final otherName = chat['otherUserName'] as String? ?? 'ผู้สนใจรับเลี้ยง';
+              final chatDogName = chat['petName'] as String? ?? widget.dogName ?? '';
+              final lastMessage = chat['lastMessage'] as String? ?? '';
+              final unread = (chat['unreadCount'] as num?)?.toInt() ?? 0;
+              final isUnread = unread > 0;
 
               return ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 leading: Stack(
                   children: [
-                    const PetAvatar(imageUrl: '', radius: 28, icon: Icons.person),
+                    PetAvatar(
+                      imageUrl: chat['petImageUrl'] as String?,
+                      radius: 28,
+                      icon: Icons.person,
+                    ),
                     if (isUnread)
                       const Positioned(
                         right: 0,
                         top: 0,
-                        child: CircleAvatar(
-                          radius: 6,
-                          backgroundColor: Color(0xFFFF9E68),
-                        ),
+                        child: CircleAvatar(radius: 6, backgroundColor: Color(0xFFFF9E68)),
                       ),
                   ],
                 ),
                 title: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      otherName,
-                      style: TextStyle(
-                        fontWeight:
-                            isUnread ? FontWeight.bold : FontWeight.normal,
-                        fontSize: 16,
-                      ),
+                    Expanded(
+                      child: Text(otherName,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 16)),
                     ),
-                    Text(
-                      _formatTime(lastMessageAt),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            isUnread ? const Color(0xFFFF9E68) : Colors.grey,
-                        fontWeight:
-                            isUnread ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
+                    Text(_formatTime(chat['lastMessageAt'] as String?),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isUnread ? const Color(0xFFFF9E68) : Colors.grey,
+                            fontWeight: isUnread ? FontWeight.bold : FontWeight.normal)),
                   ],
                 ),
                 subtitle: Text(
-                  dogName == null
+                  widget.dogName == null
                       ? 'สัตว์เลี้ยง: $chatDogName • ${lastMessage.isEmpty ? "เริ่มการสนทนาแล้ว" : lastMessage}'
                       : (lastMessage.isEmpty ? 'เริ่มการสนทนาแล้ว' : lastMessage),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: isUnread ? Colors.black87 : Colors.grey,
-                    fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
-                  ),
+                      color: isUnread ? Colors.black87 : Colors.grey,
+                      fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal),
                 ),
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => ChatScreen(
-                        chatId: doc.id,
+                        chatId: chat['id'] as String,
+                        petId: chat['petId'] as String,
                         dogName: chatDogName,
                         otherUserName: otherName,
-                        otherUserId: otherUid,
+                        otherUserId: chat['otherUserId'] as String? ?? '',
                       ),
                     ),
                   );

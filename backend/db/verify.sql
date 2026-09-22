@@ -28,16 +28,16 @@ DECLARE
 BEGIN
   RAISE NOTICE '--- เตรียมข้อมูลทดสอบ ---';
 
-  INSERT INTO users (email, password_hash, display_name, location)
-  VALUES ('somchai@test.local', 'argon2id$dummy', 'สมชาย', 'กรุงเทพมหานคร')
+  INSERT INTO users (username, email, password_hash, display_name, location)
+  VALUES ('somchai_test', 'somchai@test.local', 'argon2id$dummy', 'สมชาย', 'กรุงเทพมหานคร')
   RETURNING id INTO u_somchai;
 
-  INSERT INTO users (email, password_hash, display_name, location)
-  VALUES ('malee@test.local', 'argon2id$dummy', 'มาลี', 'เชียงใหม่')
+  INSERT INTO users (username, email, password_hash, display_name, location)
+  VALUES ('malee_test', 'malee@test.local', 'argon2id$dummy', 'มาลี', 'เชียงใหม่')
   RETURNING id INTO u_malee;
 
-  INSERT INTO users (email, password_hash, display_name)
-  VALUES ('outsider@test.local', 'argon2id$dummy', 'คนนอก')
+  INSERT INTO users (username, email, password_hash, display_name)
+  VALUES ('outsider_test', 'outsider@test.local', 'argon2id$dummy', 'คนนอก')
   RETURNING id INTO u_outsider;
 
   INSERT INTO pets (owner_id, name, species, age_months, sex, location)
@@ -51,8 +51,8 @@ BEGIN
   -- ==========================================================================
   RAISE NOTICE '[1] อีเมลต้องไม่ซ้ำแบบไม่สนตัวพิมพ์เล็กใหญ่';
   BEGIN
-    INSERT INTO users (email, password_hash, display_name)
-    VALUES ('SOMCHAI@TEST.LOCAL', 'x', 'ปลอม');
+    INSERT INTO users (username, email, password_hash, display_name)
+    VALUES ('fake_user', 'SOMCHAI@TEST.LOCAL', 'x', 'ปลอม');
     RAISE EXCEPTION 'ไม่ผ่าน [1]: สมัครอีเมลซ้ำด้วยตัวพิมพ์ใหญ่ได้';
   EXCEPTION WHEN unique_violation THEN
     RAISE NOTICE '    ผ่าน — ถูกปฏิเสธตามคาด';

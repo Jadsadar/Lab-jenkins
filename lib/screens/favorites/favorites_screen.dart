@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/demo_seed.dart';
 import '../../services/auth_service.dart';
-import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../chat/chat_screen.dart';
-import '../chat/demo_chat_screen.dart';
 import '../detail/pet_detail_screen.dart';
 
 class FavoritesScreen extends StatelessWidget {
@@ -36,44 +33,15 @@ class FavoritesScreen extends StatelessWidget {
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
 
-    // DEMO SEED: เจ้าของเป็นผู้ใช้จำลอง เปิดแชทจำลองแทน ไม่แตะ Firestore
-    // ลบเงื่อนไขนี้ทิ้งได้พร้อมกับ lib/data/demo_seed.dart
-    if (demoUsers.containsKey(ownerId)) {
-      Navigator.push(
+    Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => DemoChatScreen(
-            petId: dog['id'].toString(),
-            dogName: dog['name'],
-            otherUserId: ownerId,
-            otherUserName: ownerName,
-          ),
-        ),
-      );
-      return;
-    }
-
-    try {
-      final chatId = await ChatService.instance.ensureChat(
-        otherUserId: ownerId,
-        otherUserName: ownerName,
-        dogName: dog['name'],
-      );
-      if (!context.mounted) return;
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (context) => ChatScreen(
-                    chatId: chatId,
-                    dogName: dog['name'],
-                    otherUserName: ownerName,
-                    otherUserId: ownerId,
-                  )));
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('เปิดแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
-    }
+            builder: (context) => ChatScreen(
+                  petId: dog['id'] as String,
+                  dogName: dog['name'] as String,
+                  otherUserName: ownerName,
+                  otherUserId: ownerId,
+                )));
   }
 
   @override
