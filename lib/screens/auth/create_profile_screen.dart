@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
@@ -62,6 +61,18 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
           .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น')));
       return;
     }
+    // ช่องกรอกจำกัดไว้ 10 หลักและรับเฉพาะตัวเลขอยู่แล้ว เหลือกรณีเดียวคือกรอกไม่ครบ
+    final phone = phoneController.text.trim();
+    if (phone.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก')));
+      return;
+    }
+    if (selectedTraitIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('กรุณาเลือกไลฟ์สไตล์ / นิสัยของคุณอย่างน้อย 1 อย่าง')));
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -76,7 +87,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         displayName: name,
         extraFields: {
           'province': selectedProvince,
-          'phone': phoneController.text.trim(),
+          'phone': phone,
           'lineId': lineController.text.trim(),
           'fbLink': fbController.text.trim(),
           'homeType': selectedHomeType,
@@ -86,7 +97,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       );
       currentUserProfile['name'] = name;
       currentUserProfile['province'] = selectedProvince;
-      currentUserProfile['phone'] = phoneController.text.trim();
+      currentUserProfile['phone'] = phone;
       currentUserProfile['lineId'] = lineController.text.trim();
       currentUserProfile['fbLink'] = fbController.text.trim();
       currentUserProfile['homeType'] = selectedHomeType;
@@ -235,8 +246,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 controller: phoneController,
                 enabled: !_isSaving,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 decoration: InputDecoration(
-                  labelText: 'เบอร์โทรศัพท์',
+                  labelText: 'เบอร์โทรศัพท์ * (10 หลัก)',
                   prefixIcon: const Icon(Icons.phone),
                   filled: true,
                   fillColor: Colors.white,
@@ -303,7 +318,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
               const SizedBox(height: 24),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('ไลฟ์สไตล์ / นิสัยของคุณ',
+                child: Text('ไลฟ์สไตล์ / นิสัยของคุณ *',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
