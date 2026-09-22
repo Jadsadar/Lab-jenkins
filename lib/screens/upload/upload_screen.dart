@@ -37,6 +37,8 @@ class UploadScreen extends StatefulWidget {
 class _UploadScreenState extends State<UploadScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController breedController = TextEditingController();
+  final TextEditingController ageYearController = TextEditingController();
+  final TextEditingController ageMonthController = TextEditingController();
   final TextEditingController weightController = TextEditingController();
   final TextEditingController storyController = TextEditingController();
 
@@ -44,13 +46,36 @@ class _UploadScreenState extends State<UploadScreen> {
 
   String selectedProvince = 'กรุงเทพมหานคร';
   String selectedGender = 'ผู้';
-  String? selectedAge;
   Uint8List? _pickedImageBytes;
   int _imagePickerResetKey = 0;
   bool _isSubmitting = false;
   final List<String> genders = ['ผู้', 'เมีย'];
-  final List<String> ageOptions =
-      List.generate(25, (index) => '${index + 1} ปี');
+
+  /// ช่องกรอกตัวเลขล้วนสำหรับอายุ digitsOnly กันทั้งเครื่องหมายลบและจุดทศนิยม
+  Widget _ageField(TextEditingController controller, String label) => TextField(
+        controller: controller,
+        enabled: !_isSubmitting,
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(2),
+        ],
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+
+  /// รวมช่องปี/เดือนเป็นข้อความเดียว เพราะฝั่ง backend เก็บอายุเป็น age_label
+  /// (ข้อความอิสระ) ไม่ใช่ตัวเลข — ข้ามส่วนที่เป็น 0 เพื่อไม่ให้ได้ "0 ปี 6 เดือน"
+  String _composeAge() {
+    final years = int.tryParse(ageYearController.text) ?? 0;
+    final months = int.tryParse(ageMonthController.text) ?? 0;
+    return [
+      if (years > 0) '$years ปี',
+      if (months > 0) '$months เดือน',
+    ].join(' ');
+  }
 
   void _toggleTag(String tagId) => setState(() {
         if (selectedTags.contains(tagId)) {
@@ -61,9 +86,15 @@ class _UploadScreenState extends State<UploadScreen> {
       });
 
   Future<void> submitForm() async {
-    if (nameController.text.trim().isEmpty || selectedAge == null) {
+    final age = _composeAge();
+    if (nameController.text.trim().isEmpty || age.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
+      return;
+    }
+    if ((int.tryParse(ageMonthController.text) ?? 0) > 11) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('เดือนต้องไม่เกิน 11 ถ้าครบ 12 เดือนให้กรอกเป็นปีแทน')));
       return;
     }
     if (selectedTags.isEmpty) {
@@ -91,7 +122,7 @@ class _UploadScreenState extends State<UploadScreen> {
         "breed":
             breedController.text.isEmpty ? "พันทาง" : breedController.text,
         "province": selectedProvince,
-        "age": selectedAge!,
+        "age": age,
         "gender": selectedGender,
         "weight": weightController.text.isEmpty ? "-" : weightController.text,
         "tags": List<String>.from(selectedTags),
@@ -106,11 +137,12 @@ class _UploadScreenState extends State<UploadScreen> {
           const SnackBar(content: Text('ประกาศหาบ้านสำเร็จ!')));
       nameController.clear();
       breedController.clear();
+      ageYearController.clear();
+      ageMonthController.clear();
       weightController.clear();
       selectedTags.clear();
       storyController.clear();
       setState(() {
-        selectedAge = null;
         _pickedImageBytes = null;
         _imagePickerResetKey++;
       });
@@ -163,35 +195,22 @@ class _UploadScreenState extends State<UploadScreen> {
             ),
             const SizedBox(height: 16),
             Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: selectedAge,
-                  decoration: InputDecoration(
-                      labelText: 'อายุ *',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  items: ageOptions
-                      .map((age) =>
-                          DropdownMenuItem(value: age, child: Text(age)))
-                      .toList(),
-                  onChanged: (val) => setState(() => selectedAge = val),
-                ),
-              ),
+              Expanded(child: _ageField(ageYearController, 'อายุ (ปี) *')),
               const SizedBox(width: 16),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: selectedGender,
-                  decoration: InputDecoration(
-                      labelText: 'เพศ',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  items: genders
-                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                      .toList(),
-                  onChanged: (val) => setState(() => selectedGender = val!),
-                ),
-              ),
+              Expanded(child: _ageField(ageMonthController, 'อายุ (เดือน)')),
             ]),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedGender,
+              decoration: InputDecoration(
+                  labelText: 'เพศ',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16))),
+              items: genders
+                  .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                  .toList(),
+              onChanged: (val) => setState(() => selectedGender = val!),
+            ),
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
