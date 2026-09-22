@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
@@ -22,6 +23,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   final TextEditingController lineController = TextEditingController();
   final TextEditingController fbController = TextEditingController();
 
+  String selectedProvince = thaiProvinces.first;
   String selectedHomeType = homeTypes.first;
   final List<String> selectedTraitIds = [];
   bool _isSaving = false;
@@ -73,6 +75,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       await AuthService.instance.completeProfile(
         displayName: name,
         extraFields: {
+          'province': selectedProvince,
           'phone': phoneController.text.trim(),
           'lineId': lineController.text.trim(),
           'fbLink': fbController.text.trim(),
@@ -82,6 +85,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         },
       );
       currentUserProfile['name'] = name;
+      currentUserProfile['province'] = selectedProvince;
       currentUserProfile['phone'] = phoneController.text.trim();
       currentUserProfile['lineId'] = lineController.text.trim();
       currentUserProfile['fbLink'] = fbController.text.trim();
@@ -200,6 +204,22 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none),
                 ),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('ข้อมูลสถานที่',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade700)),
+              ),
+              const SizedBox(height: 12),
+              ProvinceField(
+                value: selectedProvince,
+                labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+                enabled: !_isSaving,
+                onChanged: (val) => setState(() => selectedProvince = val),
               ),
               const SizedBox(height: 24),
               Align(

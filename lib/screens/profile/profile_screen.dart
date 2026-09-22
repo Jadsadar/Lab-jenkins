@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/users_service.dart';
 import '../../widgets/pet_avatar.dart';
+import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
 
@@ -27,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController lineController = TextEditingController();
   final TextEditingController fbController = TextEditingController();
 
+  String currentProvince = thaiProvinces.first;
   String currentHomeType = homeTypes.first;
   List<String> selectedTraitIds = [];
 
@@ -48,6 +50,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         phoneController.text = (profile['phone'] as String?) ?? '';
         lineController.text = (profile['lineId'] as String?) ?? '';
         fbController.text = (profile['fbLink'] as String?) ?? '';
+        currentProvince = thaiProvinces.contains(profile['province'])
+            ? profile['province'] as String
+            : thaiProvinces.first;
         currentHomeType = homeTypes.contains(profile['homeType'])
             ? profile['homeType'] as String
             : homeTypes.first;
@@ -96,6 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final updated = await UsersService.instance.updateMe({
+        'province': currentProvince,
         'phone': phoneController.text,
         'lineId': lineController.text,
         'fbLink': fbController.text,
@@ -429,6 +435,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
             ),
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'ข้อมูลสถานที่',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _lockedHint(ProvinceField(
+              value: currentProvince,
+              labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+              enabled: _isEditing,
+              onChanged: (val) => setState(() => currentProvince = val),
+            )),
             const SizedBox(height: 24),
             Align(
               alignment: Alignment.centerLeft,

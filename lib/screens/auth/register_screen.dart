@@ -4,7 +4,6 @@ import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
-import '../../widgets/province_picker.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -19,7 +18,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
-  String selectedProvince = 'กรุงเทพมหานคร';
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -62,7 +60,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         username: username,
       );
       currentUserProfile['email'] = emailController.text.trim();
-      currentUserProfile['province'] = selectedProvince;
       // สมัครเสร็จแล้ว Firebase auto sign-in ให้ ต้อง signOut เองเพื่อบังคับให้ไปล็อกอินใหม่
       await AuthService.instance.signOut();
       if (!mounted) return;
@@ -163,19 +160,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 24),
-            const Text('ข้อมูลสถานที่',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68))),
-            const SizedBox(height: 16),
-            ProvinceField(
-              value: selectedProvince,
-              labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-              enabled: !_isLoading,
-              onChanged: (val) => setState(() => selectedProvince = val),
-            ),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : handleRegister,
