@@ -10,6 +10,8 @@ import { TraitsModule } from './traits/traits.module.js';
 import { PetsModule } from './pets/pets.module.js';
 import { MediaModule } from './media/media.module.js';
 import { ChatModule } from './chat/chat.module.js';
+import { ModerationModule } from './moderation/moderation.module.js';
+import { DevicesModule } from './devices/devices.module.js';
 import { JwtAuthGuard } from './common/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
 
@@ -30,6 +32,8 @@ import { validateEnv } from './config/env.validation.js';
     PetsModule,
     MediaModule,
     ChatModule,
+    ModerationModule,
+    DevicesModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],

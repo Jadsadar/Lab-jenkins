@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
+import { ChatGateway } from './chat.gateway.js';
 import type { CreateChatDto } from './dto/create-chat.dto.js';
 
 interface ChatRow {
@@ -18,7 +19,10 @@ interface ChatRow {
 
 @Injectable()
 export class ChatService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   private toChat(row: ChatRow) {
     return {
@@ -69,12 +73,19 @@ export class ChatService {
         [dto.petId, userId, ownerId],
       );
       const chatId = convRes.rows[0].id;
-      await client.query(
+      const msgRes = await client.query<{ id: string; created_at: Date }>(
         `INSERT INTO messages (conversation_id, sender_id, body, created_at)
-         VALUES ($1, $2, $3, now())`,
+         VALUES ($1, $2, $3, now())
+         RETURNING id, created_at`,
         [chatId, userId, dto.message],
       );
       await client.query('COMMIT');
+      this.chatGateway.emitNewMessage(chatId, {
+        id: msgRes.rows[0].id,
+        senderId: userId,
+        text: dto.message,
+        createdAt: msgRes.rows[0].created_at,
+      });
       return { chatId };
     } catch (err) {
       await client.query('ROLLBACK');
@@ -147,11 +158,18 @@ export class ChatService {
     if (conv.status !== 'active') {
       throw AppException.forbidden('ห้องแชทนี้ถูกปิดแล้ว ส่งข้อความใหม่ไม่ได้');
     }
-    await this.pool.query(
+    const msgRes = await this.pool.query<{ id: string; created_at: Date }>(
       `INSERT INTO messages (conversation_id, sender_id, body, created_at)
-       VALUES ($1, $2, $3, now())`,
+       VALUES ($1, $2, $3, now())
+       RETURNING id, created_at`,
       [chatId, userId, dto.text],
     );
+    this.chatGateway.emitNewMessage(chatId, {
+      id: msgRes.rows[0].id,
+      senderId: userId,
+      text: dto.text,
+      createdAt: msgRes.rows[0].created_at,
+    });
     return { success: true };
   }
 

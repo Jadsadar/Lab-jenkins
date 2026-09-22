@@ -1,0 +1,27 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { Pool } from 'pg';
+import { PG_POOL } from '../database/database.module.js';
+import type { RegisterDeviceDto } from './dto/register-device.dto.js';
+
+@Injectable()
+export class DevicesService {
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  /**
+   * token เดียวกันย้ายเจ้าของได้จริง (ดู comment บนตาราง device_tokens ใน
+   * migration 002) — unique อยู่ที่ token อย่างเดียว จึง upsert ด้วย
+   * ON CONFLICT (token) แทนที่จะ insert ใหม่ทุกครั้งที่แอปเปิด
+   */
+  async register(userId: string, dto: RegisterDeviceDto) {
+    await this.pool.query(
+      `INSERT INTO device_tokens (user_id, token, platform, last_seen_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (token) DO UPDATE
+         SET user_id = excluded.user_id,
+             platform = excluded.platform,
+             last_seen_at = now()`,
+      [userId, dto.token, dto.platform],
+    );
+    return { success: true };
+  }
+}

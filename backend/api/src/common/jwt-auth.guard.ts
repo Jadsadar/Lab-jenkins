@@ -19,6 +19,13 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // guard นี้เป็น APP_GUARD ระดับ global จึงถูกเรียกกับทุก execution context
+    // ไม่ใช่แค่ HTTP รวมถึง @SubscribeMessage ของ ChatGateway ด้วย — WS ยืนยัน
+    // ตัวตนของตัวเองแล้วตอน handshake (ดู ChatGateway.handleConnection) ที่นี่จึง
+    // ต้องข้าม ไม่งั้น context.switchToHttp().getRequest() จะได้ request ว่าง ๆ
+    // แล้ว throw unauthorized ให้ทุก WS event เงียบ ๆ โดยไม่มี error ให้เห็น
+    if (context.getType() !== 'http') return true;
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

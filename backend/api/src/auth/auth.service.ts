@@ -25,6 +25,8 @@ export interface TokenPair {
 }
 
 const REFRESH_TOKEN_BYTES = 32;
+const RESET_TOKEN_BYTES = 32;
+const RESET_TOKEN_TTL_SECONDS = 30 * 60;
 
 @Injectable()
 export class AuthService {
@@ -230,6 +232,104 @@ export class AuthService {
        WHERE token_hash = $1 AND revoked_at IS NULL`,
       [tokenHash],
     );
+    return { success: true };
+  }
+
+  /**
+   * ยังไม่มี email provider ต่อไว้ (ดู .env.example) — endpoint นี้จึงคืน resetToken
+   * ตรง ๆ ใน response แทนการส่งอีเมลจริง เหมาะกับโปรเจกต์เรียน/dev เท่านั้น
+   * ก่อนขึ้น production ต้องเปลี่ยนเป็นส่งอีเมลแล้วเอา resetToken ออกจาก response
+   *
+   * ไม่ตอบข้อความต่างกันระหว่าง "ไม่มีอีเมลนี้ในระบบ" กับ "มี" (ข้อความเหมือนกันเสมอ)
+   * แต่การมี/ไม่มี resetToken ในตอบกลับยังทำให้เดาได้อยู่ดี —ยอมรับ trade-off นี้
+   * เพราะไม่มีอีเมลจริงให้ส่ง ถ้าต่อ email provider แล้วต้องลบ resetToken ออกจาก response
+   */
+  async forgotPassword(email: string) {
+    const message = 'ถ้ามีบัญชีนี้อยู่ในระบบ ระบบได้ออกลิงก์รีเซ็ตรหัสผ่านแล้ว';
+
+    const userRes = await this.pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
+      [email.trim()],
+    );
+    if (userRes.rows.length === 0) {
+      return { message };
+    }
+    const userId = userRes.rows[0].id;
+
+    const token = randomBytes(RESET_TOKEN_BYTES).toString('base64url');
+    const tokenHash = this.sha256(token);
+
+    await this.pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, now() + ($3 || ' seconds')::interval)`,
+      [userId, tokenHash, RESET_TOKEN_TTL_SECONDS],
+    );
+
+    return { message, resetToken: token };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = this.sha256(token);
+
+    const result = await this.pool.query<{
+      id: string;
+      user_id: string;
+      used_at: Date | null;
+      expires_at: Date;
+      username: string;
+      email: string;
+    }>(
+      `SELECT prt.id, prt.user_id, prt.used_at, prt.expires_at, u.username, u.email
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+       WHERE prt.token_hash = $1`,
+      [tokenHash],
+    );
+
+    if (result.rows.length === 0) {
+      throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
+    }
+    const row = result.rows[0];
+
+    if (row.used_at !== null || row.expires_at < new Date()) {
+      throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือถูกใช้ไปแล้ว');
+    }
+
+    const passwordError = firstPasswordError(newPassword, {
+      username: row.username,
+      email: row.email,
+    });
+    if (passwordError) {
+      throw new AppException('WEAK_PASSWORD', passwordError);
+    }
+
+    const passwordHash = await argon2.hash(newPassword);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        passwordHash,
+        row.user_id,
+      ]);
+      await client.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [
+        row.id,
+      ]);
+      // เปลี่ยนรหัสผ่านแล้ว = ทุกอุปกรณ์ที่ล็อกอินค้างอยู่ต้องถูกบังคับให้ล็อกอินใหม่
+      // (revoked_reason นี้เตรียมไว้แล้วใน migration 002 ตั้งแต่ตอนออกแบบ refresh_tokens)
+      await client.query(
+        `UPDATE refresh_tokens SET revoked_at = now(), revoked_reason = 'password_changed'
+         WHERE user_id = $1 AND revoked_at IS NULL`,
+        [row.user_id],
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
     return { success: true };
   }
 
