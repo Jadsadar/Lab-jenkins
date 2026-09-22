@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
+import '../../services/users_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../profile/user_profile_screen.dart';
 
@@ -41,6 +42,10 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _chatId;
   bool _sending = false;
 
+  /// รูปคู่สนทนาที่จะโชว์บน AppBar — เริ่มจากค่าที่ส่งมา (มีเฉพาะตอนเข้าจากกล่องข้อความ
+  /// ซึ่ง GET /chats ส่ง otherUserAvatarUrl มาให้) ถ้าไม่มีจะไปดึงเองใน _loadOtherAvatar()
+  String _otherAvatar = '';
+
   /// กำลังหาว่าเคยมีห้องแชทของประกาศนี้อยู่แล้วหรือไม่ ระหว่างนี้ยังไม่รู้ว่าจะมี
   /// ประวัติเดิมให้โชว์ไหม เลยต้องกันไม่ให้ขึ้นข้อความ "ทักทาย...กันเลย!" ไปก่อน
   bool _resolvingChat = false;
@@ -59,12 +64,30 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chatId = widget.chatId;
+    _otherAvatar = widget.otherUserAvatar;
     if (_chatId != null) {
       _messagesStream = ChatService.instance.pollMessages(_chatId!);
       ChatService.instance.markRead(_chatId!);
     } else if (widget.otherUserId.isNotEmpty) {
       _resolvingChat = true;
       _resolveExistingChat();
+    }
+    if (_otherAvatar.isEmpty && widget.otherUserId.isNotEmpty) {
+      _loadOtherAvatar();
+    }
+  }
+
+  /// เข้าจากปุ่ม "ทักแชท" (หน้าปัด/ถูกใจ/รายละเอียดประกาศ) จะไม่มีรูปคู่สนทนาติดมา
+  /// เพราะข้อมูลประกาศไม่มี avatar ของเจ้าของอยู่ในนั้น — ดึงจากโปรไฟล์สาธารณะเอง
+  /// เพื่อให้ทุกทางเข้าเห็นรูปเหมือนกัน ไม่ใช่เห็นเฉพาะตอนเข้าจากกล่องข้อความ
+  Future<void> _loadOtherAvatar() async {
+    try {
+      final profile = await UsersService.instance.getPublicProfile(widget.otherUserId);
+      final url = profile['profileImageUrl'] as String? ?? '';
+      if (!mounted || url.isEmpty) return;
+      setState(() => _otherAvatar = url);
+    } catch (_) {
+      // ดึงไม่ได้ก็แค่โชว์ไอคอนคนตามเดิม ไม่ใช่เรื่องที่ต้องขัดจังหวะผู้ใช้
     }
   }
 
@@ -170,9 +193,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
           child: Row(
             children: [
-              widget.otherUserAvatar.isNotEmpty
+              _otherAvatar.isNotEmpty
                   ? PetAvatar(
-                      imageUrl: widget.otherUserAvatar,
+                      imageUrl: _otherAvatar,
                       radius: 20,
                       icon: Icons.person,
                       backgroundColor: Colors.white,

@@ -150,6 +150,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                         petId: chat['petId'] as String,
                         dogName: chatDogName,
                         otherUserName: otherName,
+                        otherUserAvatar: chat['otherUserAvatarUrl'] as String? ?? '',
                         otherUserId: chat['otherUserId'] as String? ?? '',
                       ),
                     ),

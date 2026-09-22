@@ -12,6 +12,7 @@ interface ChatRow {
   pet_image_url: string | null;
   other_user_id: string;
   other_user_name: string;
+  other_user_avatar: string | null;
   last_message: string | null;
   last_message_at: Date;
   unread_count: number;
@@ -32,6 +33,7 @@ export class ChatService {
       petImageUrl: row.pet_image_url ?? '',
       otherUserId: row.other_user_id,
       otherUserName: row.other_user_name,
+      otherUserAvatarUrl: row.other_user_avatar ?? '',
       lastMessage: row.last_message ?? '',
       lastMessageAt: row.last_message_at,
       unreadCount: row.unread_count,
@@ -104,6 +106,7 @@ export class ChatService {
          (SELECT pm.url FROM pet_media pm WHERE pm.pet_id = p.id ORDER BY pm.sort_order LIMIT 1) AS pet_image_url,
          CASE WHEN c.initiator_id = $1 THEN c.owner_id ELSE c.initiator_id END AS other_user_id,
          CASE WHEN c.initiator_id = $1 THEN uo.display_name ELSE ui.display_name END AS other_user_name,
+         CASE WHEN c.initiator_id = $1 THEN uo.avatar_url ELSE ui.avatar_url END AS other_user_avatar,
          c.last_message_preview AS last_message,
          c.last_message_at,
          CASE WHEN c.initiator_id = $1 THEN c.initiator_unread_count ELSE c.owner_unread_count END AS unread_count
