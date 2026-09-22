@@ -120,7 +120,9 @@ export class PetsService {
     return this.toDog(res.rows[0]);
   }
 
-  async findMine(ownerId: string) {
+  // ใช้ทั้งหน้า "ประกาศของฉัน" และหน้าโปรไฟล์สาธารณะของผู้ใช้คนอื่น —
+  // ประกาศหาบ้านเป็นข้อมูลสาธารณะอยู่แล้ว จึงไม่ต้องกรองต่างกันตามผู้ดู
+  async findByOwner(ownerId: string) {
     const res = await this.pool.query<PetRow>(
       `${PET_SELECT} WHERE p.owner_id = $1 AND p.deleted_at IS NULL ORDER BY p.created_at DESC`,
       [ownerId],

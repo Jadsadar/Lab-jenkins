@@ -284,7 +284,6 @@ class _MainScreenState extends State<MainScreen> {
         ),
         FavoritesScreen(
           likedDogs: likedDogs,
-          myPostedDogs: myPostedDogs,
           onToggleFavorite: onToggleFavoriteDog,
         ),
         const ChatInboxScreen(),

@@ -28,6 +28,13 @@ class PetService {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// ประกาศทั้งหมดของผู้ใช้คนหนึ่ง ใช้ในหน้าโปรไฟล์สาธารณะ เพื่อให้เห็นประกาศ
+  /// ครบเหมือนกันไม่ว่าจะกดเข้ามาจากหน้าไหน
+  Future<List<Map<String, dynamic>>> byOwner(String ownerId) async {
+    final res = await _api.get('/pets/by-owner/$ownerId') as List;
+    return res.cast<Map<String, dynamic>>();
+  }
+
   Future<List<Map<String, dynamic>>> myLikes() async {
     final res = await _api.get('/pets/likes') as List;
     return res.cast<Map<String, dynamic>>();

@@ -7,13 +7,11 @@ import '../detail/pet_detail_screen.dart';
 
 class FavoritesScreen extends StatelessWidget {
   final List<Map<String, dynamic>> likedDogs;
-  final List<Map<String, dynamic>> myPostedDogs;
   final Function(Map<String, dynamic>) onToggleFavorite;
 
   const FavoritesScreen({
     super.key,
     required this.likedDogs,
-    required this.myPostedDogs,
     required this.onToggleFavorite,
   });
 
@@ -100,7 +98,6 @@ class FavoritesScreen extends StatelessWidget {
                                       .any((d) => d['id'] == dog['id']),
                                   onToggleFavorite: () =>
                                       onToggleFavorite(dog),
-                                  knownPets: [...likedDogs, ...myPostedDogs],
                                 ))),
                   ),
                 );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../services/pet_service.dart';
 import '../../services/users_service.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
@@ -9,21 +10,18 @@ import '../detail/pet_detail_screen.dart';
 
 /// หน้าโปรไฟล์ของผู้ใช้คนอื่น เปิดได้จากประกาศสัตว์เลี้ยงหรือจากห้องแชท
 ///
-/// ประกาศของเจ้าของคนนี้ต้องส่งเข้ามาจากหน้าที่เรียก (ownerPets) เพราะ backend
-/// ไม่มี endpoint "ประกาศทั้งหมดของ uid นี้" แยกต่างหาก (ใช้ GET /pets/mine
-/// ได้เฉพาะของตัวเอง) — ถ้าหน้าที่เรียกไม่รู้จักประกาศอื่นของเขา (เช่นเปิดจาก
-/// ห้องแชทตรง ๆ) จะเห็นแค่ข้อความ "ยังไม่มีประกาศอื่นให้ดู" ไปก่อน
+/// ดึงประกาศของเจ้าของเองจาก GET /pets/by-owner/:id ไม่รับส่งเข้ามาจากหน้าที่
+/// เรียก เพราะหน้าที่เรียกแต่ละหน้ารู้จักประกาศไม่เท่ากัน (เปิดจากห้องแชทจะไม่รู้
+/// ประกาศอื่นของเขาเลย) ทำให้เห็นข้อมูลไม่ตรงกันแล้วแต่ทางที่กดเข้ามา
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({
     super.key,
     required this.uid,
     this.fallbackName = 'เจ้าของ',
-    this.ownerPets = const [],
   });
 
   final String uid;
   final String fallbackName;
-  final List<Map<String, dynamic>> ownerPets;
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -31,6 +29,7 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   Map<String, dynamic>? _profile;
+  List<Map<String, dynamic>> _ownerPets = [];
   bool _isLoading = true;
   bool _hasError = false;
 
@@ -47,8 +46,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     });
     try {
       final profile = await UsersService.instance.getPublicProfile(widget.uid);
+      final pets = await PetService.instance.byOwner(widget.uid);
       if (!mounted) return;
-      setState(() => _profile = profile);
+      setState(() {
+        _profile = profile;
+        _ownerPets = pets;
+      });
     } catch (_) {
       if (mounted) setState(() => _hasError = true);
     } finally {
@@ -90,7 +93,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
       );
     }
-    return _scaffold(context, _profile!, widget.ownerPets);
+    return _scaffold(context, _profile!, _ownerPets);
   }
 
   Widget _scaffold(
@@ -260,7 +263,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               isMyPost: false,
               isFavorited: false,
               onToggleFavorite: () {},
-              knownPets: pets,
             ),
           ),
         ),

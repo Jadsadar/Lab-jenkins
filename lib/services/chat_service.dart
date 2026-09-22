@@ -36,6 +36,26 @@ class ChatService {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// หาห้องแชทเดิมของประกาศนี้ คืน null ถ้ายังไม่เคยคุยกัน
+  ///
+  /// หน้าที่มีปุ่ม "ทักแชท" (Discover / รายการที่สนใจ / รายละเอียดสัตว์) ไม่รู้ chatId
+  /// จึงเปิด ChatScreen มาแบบ chatId = null — ถ้าไม่หาห้องเดิมให้ก่อน ผู้ใช้จะเห็น
+  /// ห้องว่างทั้งที่เคยคุยกันไปแล้ว
+  ///
+  /// ต้องเทียบ otherUserId ด้วย ไม่ใช่แค่ petId เพราะเจ้าของประกาศตัวเดียวกัน
+  /// มีห้องแชทกับผู้สนใจได้หลายคนพร้อมกัน
+  Future<String?> findChatForPet({
+    required String petId,
+    required String otherUserId,
+  }) async {
+    for (final chat in await myChats()) {
+      if (chat['petId'] == petId && chat['otherUserId'] == otherUserId) {
+        return chat['id'] as String?;
+      }
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> messages(String chatId) async {
     final res = await _api.get('/chats/$chatId/messages') as List;
     return res.cast<Map<String, dynamic>>();

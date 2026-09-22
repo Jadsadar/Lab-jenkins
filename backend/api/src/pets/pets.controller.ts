@@ -37,7 +37,12 @@ export class PetsController {
 
   @Get('mine')
   findMine(@CurrentUser() user: AuthUser) {
-    return this.petsService.findMine(user.id);
+    return this.petsService.findByOwner(user.id);
+  }
+
+  @Get('by-owner/:ownerId')
+  findByOwner(@Param('ownerId') ownerId: string) {
+    return this.petsService.findByOwner(ownerId);
   }
 
   @Get('likes')

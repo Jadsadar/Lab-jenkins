@@ -304,7 +304,6 @@ class _UploadScreenState extends State<UploadScreen> {
                                         isMyPost: true,
                                         isFavorited: widget.likedDogs.any((d) => d['id'] == dog['id']),
                                         onToggleFavorite: () => widget.onToggleFavorite(dog),
-                                        knownPets: widget.myPostedDogs,
                                       ))),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(

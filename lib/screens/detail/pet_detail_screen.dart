@@ -14,16 +14,12 @@ class PetDetailScreen extends StatefulWidget {
   final bool isFavorited;
   final VoidCallback? onToggleFavorite;
 
-  /// รายการสัตว์เลี้ยงเท่าที่หน้าที่เรียกมารู้จัก ใช้หาประกาศตัวอื่นของเจ้าของคนเดียวกัน
-  final List<Map<String, dynamic>> knownPets;
-
   const PetDetailScreen({
     super.key,
     required this.dog,
     this.isMyPost = false,
     this.isFavorited = false,
     this.onToggleFavorite,
-    this.knownPets = const [],
   });
 
   @override
@@ -283,10 +279,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final ownerName = widget.dog['ownerName'] as String? ?? 'เจ้าของ';
     if (ownerId == null || ownerId.isEmpty) return const SizedBox.shrink();
 
-    final ownerPets = widget.knownPets
-        .where((pet) => pet['ownerId'] == ownerId)
-        .toList(growable: false);
-
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () => Navigator.push(
@@ -295,7 +287,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           builder: (context) => UserProfileScreen(
             uid: ownerId,
             fallbackName: ownerName,
-            ownerPets: ownerPets,
           ),
         ),
       ),

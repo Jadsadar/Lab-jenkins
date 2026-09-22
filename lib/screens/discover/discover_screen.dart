@@ -136,7 +136,6 @@ class DiscoverScreen extends StatelessWidget {
                       onPass: () => onPass(dogs.first),
                       likedDogs: likedDogs,
                       onToggleFavorite: onToggleFavorite,
-                      allPets: dogs,
                     ),
                   ),
                 ),

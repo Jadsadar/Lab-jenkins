@@ -41,6 +41,10 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _chatId;
   bool _sending = false;
 
+  /// กำลังหาว่าเคยมีห้องแชทของประกาศนี้อยู่แล้วหรือไม่ ระหว่างนี้ยังไม่รู้ว่าจะมี
+  /// ประวัติเดิมให้โชว์ไหม เลยต้องกันไม่ให้ขึ้นข้อความ "ทักทาย...กันเลย!" ไปก่อน
+  bool _resolvingChat = false;
+
   /// สร้างครั้งเดียวตอนรู้ห้องแชท ห้ามเรียก pollMessages() ใน build() —
   /// build() รันใหม่ทุกครั้งที่พิมพ์/ส่งข้อความ ถ้าสร้าง stream ใหม่ทุกรอบ
   /// StreamBuilder จะรีเซ็ตกลับไปสถานะ "ยังไม่มีข้อมูล" (เด้งเป็น spinner)
@@ -58,6 +62,31 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_chatId != null) {
       _messagesStream = ChatService.instance.pollMessages(_chatId!);
       ChatService.instance.markRead(_chatId!);
+    } else if (widget.otherUserId.isNotEmpty) {
+      _resolvingChat = true;
+      _resolveExistingChat();
+    }
+  }
+
+  /// เปิดมาจากปุ่ม "ทักแชท" ซึ่งไม่รู้ chatId — ถ้าเคยคุยกันเรื่องประกาศนี้แล้ว
+  /// ต้องเข้าห้องเดิมให้เห็นประวัติ ไม่ใช่เริ่มจากห้องว่าง
+  Future<void> _resolveExistingChat() async {
+    try {
+      final existing = await ChatService.instance.findChatForPet(
+        petId: widget.petId,
+        otherUserId: widget.otherUserId,
+      );
+      if (!mounted || existing == null) return;
+      setState(() {
+        _chatId = existing;
+        _messagesStream = ChatService.instance.pollMessages(existing);
+      });
+      ChatService.instance.markRead(existing);
+    } catch (_) {
+      // หาห้องเดิมไม่เจอเพราะเน็ตมีปัญหา ยังพิมพ์ข้อความใหม่ได้ตามปกติ —
+      // createOrSend ฝั่ง backend ผูกข้อความเข้าห้องเดิมให้เองอยู่แล้ว
+    } finally {
+      if (mounted) setState(() => _resolvingChat = false);
     }
   }
 
@@ -183,6 +212,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageList(String myUid) {
+    if (_resolvingChat) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final messagesStream = _messagesStream;
     if (messagesStream == null) {
       // ยังไม่เคยส่งข้อความเลย ไม่มีห้องให้ poll — โชว์ช่องว่างเชิญชวนให้เริ่มคุย
