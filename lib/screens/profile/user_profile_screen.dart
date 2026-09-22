@@ -106,7 +106,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         children: [
           _header(profile),
           const SizedBox(height: 24),
+          _sectionTitle('ไลฟ์สไตล์ / นิสัย'),
+          const SizedBox(height: 12),
           _traits(profile),
+          const SizedBox(height: 24),
+          _sectionTitle('ข้อมูลการติดต่อ'),
+          const SizedBox(height: 12),
           _contact(context, profile),
           const Divider(height: 40, color: Colors.black12),
           Text('ประกาศหาบ้านของผู้ใช้นี้ (${pets.length})',
@@ -127,49 +132,54 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  Widget _sectionTitle(String text) => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      );
+
+  /// ข้อความแทนช่องที่เจ้าของยังไม่ได้กรอก — ต้องแสดงหัวข้อไว้เสมอ ไม่ใช่ซ่อนทั้งบล็อก
+  /// ไม่งั้นโปรไฟล์ของคนที่ยังกรอกไม่ครบจะว่างเปล่าจนดูเหมือนหน้าจอพัง
+  Widget _notFilled() => const Text('ยังไม่ได้ระบุ',
+      style: TextStyle(color: Colors.black38, fontStyle: FontStyle.italic));
+
   Widget _header(Map<String, dynamic> profile) {
     final name = (profile['displayName'] as String?)?.trim();
-    final province = profile['province'] as String?;
+    final province = (profile['province'] as String?)?.trim() ?? '';
     return Column(
       children: [
         PetAvatar(imageUrl: profile['profileImageUrl'] as String?, radius: 48, icon: Icons.person),
         const SizedBox(height: 12),
         Text(name == null || name.isEmpty ? widget.fallbackName : name,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
-        if (province != null && province.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.location_on, size: 16, color: Color(0xFFFF9E68)),
-              const SizedBox(width: 4),
-              Text(province, style: const TextStyle(color: Colors.black54, fontSize: 14)),
-            ],
-          ),
-        ],
+        const SizedBox(height: 8),
+        Chip(
+          avatar: const Icon(Icons.location_on, color: Colors.white, size: 16),
+          label: Text(province.isEmpty ? 'ยังไม่ได้ระบุจังหวัด' : province,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: const Color(0xFFFFB085),
+          side: BorderSide.none,
+        ),
       ],
     );
   }
 
   Widget _traits(Map<String, dynamic> profile) {
-    final ids = (profile['traits'] as List?)?.map((e) => e.toString()).toList();
-    if (ids == null || ids.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        alignment: WrapAlignment.center,
-        children: tagLabels(ids)
-            .map((label) => Chip(
-                  label: Text(label,
-                      style: const TextStyle(color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
-                  backgroundColor: Colors.white,
-                  side: BorderSide.none,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ))
-            .toList(),
-      ),
+    final ids = (profile['traits'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    if (ids.isEmpty) return _notFilled();
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: tagLabels(ids)
+          .map((label) => Chip(
+                label: Text(label,
+                    style: const TextStyle(color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
+                backgroundColor: Colors.white,
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ))
+          .toList(),
     );
   }
 
@@ -179,43 +189,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         SnackBar(content: Text('คัดลอก $label แล้ว'), duration: const Duration(seconds: 1)));
   }
 
-  /// แสดงเฉพาะช่องทางที่เจ้าของกรอกไว้เอง ไม่โชว์เบอร์โทรในหน้าสาธารณะ
-  /// (backend เองก็ไม่ส่ง phone มาให้ในโปรไฟล์สาธารณะอยู่แล้ว — ดู users.service.ts)
+  /// ไม่โชว์เบอร์โทรในหน้าสาธารณะ — backend ก็ไม่ส่ง phone มาให้อยู่แล้ว
+  /// (ดู getPublic() ใน users.service.ts และคอมเมนต์บนตาราง user_contacts)
   Widget _contact(BuildContext context, Map<String, dynamic> profile) {
     final lineId = (profile['lineId'] as String?)?.trim() ?? '';
     final fbLink = (profile['fbLink'] as String?)?.trim() ?? '';
-    if (lineId.isEmpty && fbLink.isEmpty) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
-          if (lineId.isNotEmpty)
-            _contactRow(
-              context: context,
-              icon: Icons.chat_bubble_outline,
-              text: 'LINE: $lineId',
-              onCopy: () => _copyToClipboard(context, 'LINE ID', lineId),
-            ),
-          if (lineId.isNotEmpty && fbLink.isNotEmpty)
-            const Divider(height: 1, color: Colors.black12),
-          if (fbLink.isNotEmpty)
-            _contactRow(
-              context: context,
-              icon: Icons.facebook,
-              text: fbLink,
-              onCopy: () => _copyToClipboard(context, 'ชื่อ Facebook', fbLink),
-            ),
+          _contactRow(
+            icon: Icons.chat_bubble_outline,
+            label: 'LINE ID',
+            value: lineId,
+            onCopy: () => _copyToClipboard(context, 'LINE ID', lineId),
+          ),
+          const Divider(height: 1, color: Colors.black12),
+          _contactRow(
+            icon: Icons.facebook,
+            label: 'ชื่อ Facebook',
+            value: fbLink,
+            onCopy: () => _copyToClipboard(context, 'ชื่อ Facebook', fbLink),
+          ),
         ],
       ),
     );
   }
 
   Widget _contactRow({
-    required BuildContext context,
     required IconData icon,
-    required String text,
+    required String label,
+    required String value,
     required VoidCallback onCopy,
   }) {
     return Padding(
@@ -224,12 +230,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         children: [
           Icon(icon, size: 18, color: const Color(0xFFFF9E68)),
           const SizedBox(width: 8),
-          Expanded(child: Text(text)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+                value.isEmpty
+                    ? _notFilled()
+                    : Text(value, style: const TextStyle(fontSize: 15)),
+              ],
+            ),
+          ),
+          // ไม่มีข้อมูลก็ไม่มีอะไรให้คัดลอก ปุ่มจึงต้องกดไม่ได้
           IconButton(
             icon: const Icon(Icons.copy, size: 18),
             tooltip: 'คัดลอก',
             visualDensity: VisualDensity.compact,
-            onPressed: onCopy,
+            onPressed: value.isEmpty ? null : onCopy,
           ),
         ],
       ),
