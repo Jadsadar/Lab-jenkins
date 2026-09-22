@@ -61,9 +61,19 @@ class _UploadScreenState extends State<UploadScreen> {
       });
 
   Future<void> submitForm() async {
-    if (nameController.text.isEmpty || selectedAge == null) {
+    if (nameController.text.trim().isEmpty || selectedAge == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
+      return;
+    }
+    if (selectedTags.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('กรุณาเลือกนิสัยเด่นๆ อย่างน้อย 1 แท็ก')));
+      return;
+    }
+    if (_pickedImageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('กรุณาเลือกรูปภาพสัตว์เลี้ยง 1 รูป')));
       return;
     }
 
@@ -71,11 +81,8 @@ class _UploadScreenState extends State<UploadScreen> {
     try {
       // อัปโหลดรูปให้เสร็จก่อนเรียกสร้างประกาศเสมอ ถ้าเรียกสลับกันแล้วรูปพัง
       // จะได้ประกาศรูปแตกค้างอยู่ใน deck
-      String imageUrl = '';
-      if (_pickedImageBytes != null) {
-        imageUrl =
-            await StorageService.instance.uploadPetImage(_pickedImageBytes!);
-      }
+      final imageUrl =
+          await StorageService.instance.uploadPetImage(_pickedImageBytes!);
       // ให้ backend เป็นคนสร้าง id/ownerId/ownerName จริง ๆ แทนการปลอมขึ้นเอง
       // (เดิม id มาจาก millisecondsSinceEpoch ในเครื่อง ซึ่งไม่ใช่ id จริงและ
       // ทำให้โพสต์นี้ไม่เคยถูกบันทึกไว้ที่ไหนที่บัญชีอื่นจะเห็นได้เลย)
@@ -212,7 +219,7 @@ class _UploadScreenState extends State<UploadScreen> {
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('นิสัยเด่นๆ ของสัตว์เลี้ยง',
+              child: Text('นิสัยเด่นๆ ของสัตว์เลี้ยง *',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -234,7 +241,7 @@ class _UploadScreenState extends State<UploadScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
-            const Text('รูปภาพและวิดีโอ',
+            const Text('รูปภาพ *',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

@@ -206,7 +206,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
-            const Text('รูปภาพและวิดีโอ',
+            const Text('รูปภาพ',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
