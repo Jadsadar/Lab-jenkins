@@ -72,7 +72,13 @@ class _MainScreenState extends State<MainScreen> {
       final page = await _petService.deck(cursor: _deckCursor);
       if (!mounted) return;
       setState(() {
-        allDogs = [...allDogs, ...page.dogs];
+        // ตัวที่ใส่กลับเข้า deck เอง (เลิกถูกใจ/เลิกปัด) กลายเป็นตัวที่ server
+        // ส่งมาได้อีกในหน้าถัดไป ถ้าต่อท้ายดื้อ ๆ จะเห็นการ์ดเดิมซ้ำสองใบ
+        final knownIds = allDogs.map((d) => d['id']).toSet();
+        allDogs = [
+          ...allDogs,
+          ...page.dogs.where((d) => !knownIds.contains(d['id'])),
+        ];
         _deckCursor = page.nextCursor;
         _deckHasMore = page.hasMore;
       });
@@ -173,6 +179,7 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       if (exists) {
         likedDogs.removeWhere((d) => d['id'] == id);
+        _returnToDeck(dog);
       } else {
         likedDogs.add(dog);
         allDogs.removeWhere((d) => d['id'] == id);
@@ -184,12 +191,25 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         if (exists) {
           likedDogs.add(dog);
+          allDogs.removeWhere((d) => d['id'] == id);
         } else {
           likedDogs.removeWhere((d) => d['id'] == id);
         }
       });
       _showError('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     });
+  }
+
+  /// เลิกถูกใจแล้วต้องกลับมาเห็นในหน้าค้นหาอีกครั้ง — ฝั่ง DB ปลดให้เองตอนลบแถว
+  /// likes (deck_feed กรองด้วย NOT EXISTS likes) แต่ allDogs ดึงมาไว้ในเครื่องแล้ว
+  /// จึงต้องใส่กลับเอง ไม่งั้นต้องปิดแล้วเปิดแอปใหม่ถึงจะเจอ
+  ///
+  /// ใส่ไว้บนสุดแบบเดียวกับปุ่มเลิกปัด (onUndoPass) เพื่อให้เห็นผลทันทีว่ากลับมาแล้ว
+  void _returnToDeck(Map<String, dynamic> dog) {
+    // ตัวที่ถูกรับเลี้ยง/ยกเลิกประกาศไปแล้ว deck_feed ก็ไม่ส่งมาให้อยู่ดี
+    if (dog['status'] != 'ยังไม่ถูกรับเลี้ยง') return;
+    if (allDogs.any((d) => d['id'] == dog['id'])) return;
+    allDogs.insert(0, dog);
   }
 
   @override
