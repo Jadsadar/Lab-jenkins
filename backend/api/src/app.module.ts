@@ -12,6 +12,7 @@ import { MediaModule } from './media/media.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { ModerationModule } from './moderation/moderation.module.js';
 import { DevicesModule } from './devices/devices.module.js';
+import { AdminModule } from './admin/admin.module.js';
 import { JwtAuthGuard } from './common/jwt-auth.guard.js';
 import { validateEnv } from './config/env.validation.js';
 
@@ -34,6 +35,7 @@ import { validateEnv } from './config/env.validation.js';
     ChatModule,
     ModerationModule,
     DevicesModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
