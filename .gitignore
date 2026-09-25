@@ -66,3 +66,6 @@ yarn-error.log*
 # Docker volumes ถูก mount ผ่าน docker-compose อยู่แล้ว ไม่ควรมีไฟล์ data ค้างในซอร์ส
 backend/db/pgdata/
 backend/db/miniodata/
+
+# Jenkins agent binary — download from <jenkins-url>/jnlpJars/agent.jar
+agent.jar
