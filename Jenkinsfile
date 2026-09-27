@@ -1,5 +1,10 @@
 pipeline {
-    agent { docker { image 'node:24-alpine' } }
+    agent {
+        docker {
+            image 'node:24-alpine'
+            label 'linux-build'
+        }
+    }
 
     environment {
         APP_NAME = 'taskflow-api'
