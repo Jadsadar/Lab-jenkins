@@ -13,6 +13,6 @@ export class AppController {
   @Get('health')
   async health() {
     await this.pool.query('SELECT 1');
-    return { status: 'ok', db: 'connected' };
+    return { status: 'ok', db: 'connected', timestamp: new Date().toISOString() };
   }
 }
