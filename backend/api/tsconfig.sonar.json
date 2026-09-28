@@ -1,0 +1,20 @@
+{
+  // SonarQube 9.9 bundles an older TypeScript that rejects options from
+  // tsconfig.json (resolvePackageJsonExports, target ES2023) and then skips
+  // every file. This config uses only options it understands. Analysis only,
+  // never used to build.
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "noEmit": true
+  },
+  "include": ["src"]
+}
