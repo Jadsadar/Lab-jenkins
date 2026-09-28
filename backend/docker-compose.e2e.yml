@@ -1,0 +1,73 @@
+# Throwaway stack for the Jenkins E2E stage (Lab 05)
+#
+#   docker compose -f backend/docker-compose.e2e.yml -p petpaws-e2e up -d --build --wait
+#
+# ต่างจาก docker-compose.yml (ของ dev) ตรงนี้:
+# - migrations ถูก COPY เข้า image แทนการ bind mount เพราะ compose ถูกสั่งจากใน
+#   container ของ Jenkins agent ซึ่ง path ในนั้น Docker daemon มองไม่เห็น
+# - ไม่เปิด port ออกนอกเครื่อง และไม่ตั้ง container_name จึงไม่ชนกับ stack dev
+#   Playwright เข้าถึง API ผ่าน network petpaws-e2e_default ที่ http://api:3000
+# - ไม่มี volume และไม่มี redis (API ยังไม่ได้ใช้): `down -v` แล้วข้อมูลว่างทุกครั้ง
+#   เทสต์ไม่ขึ้นกับข้อมูลรอบก่อน
+
+services:
+  postgres:
+    build:
+      context: ./db
+      dockerfile_inline: |
+        FROM postgres:16-alpine
+        COPY migrations/ /docker-entrypoint-initdb.d/
+    environment:
+      POSTGRES_USER: petpaws
+      POSTGRES_PASSWORD: petpaws_e2e_password
+      POSTGRES_DB: petpaws
+      TZ: UTC
+      PGTZ: UTC
+    healthcheck:
+      # -h 127.0.0.1: ระหว่างรัน migrations postgres เปิดแค่ unix socket
+      # เช็กผ่าน TCP จึงจะ healthy หลัง migrations เสร็จจริงเท่านั้น
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U petpaws -d petpaws"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  # API สร้าง bucket เองตอน boot (MediaService.onModuleInit) จึงต้องมี S3 จริง
+  # ถึง E2E จะไม่ได้อัปโหลดรูปก็ตาม
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: petpaws_e2e
+      MINIO_ROOT_PASSWORD: petpaws_e2e_password
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgres://petpaws:petpaws_e2e_password@postgres:5432/petpaws
+      JWT_ACCESS_SECRET: e2e-access-secret
+      JWT_REFRESH_SECRET: e2e-refresh-secret
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 30d
+      API_PORT: "3000"
+      CORS_ORIGIN: "*"
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: petpaws-e2e
+      S3_ACCESS_KEY_ID: petpaws_e2e
+      S3_SECRET_ACCESS_KEY: petpaws_e2e_password
+      S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 40

@@ -73,3 +73,9 @@ agent.jar
 
 # Firebase config with API keys
 lib/firebase_options.dart
+
+# Playwright E2E output (Lab 05)
+backend/e2e/node_modules/
+backend/e2e/playwright-report/
+backend/e2e/results/
+backend/e2e/test-results/

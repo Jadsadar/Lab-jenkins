@@ -8,6 +8,7 @@ pipeline {
         APP_NAME = 'taskflow-api'
         NODE_ENV = 'test'
         NPM_CONFIG_CACHE = '/tmp/.npm'
+        E2E_COMPOSE = '-f backend/docker-compose.e2e.yml -p petpaws-e2e'
     }
 
     options {
@@ -57,6 +58,27 @@ pipeline {
                 }
             }
         }
+        stage('E2E') {
+            stages {
+                stage('E2E: Start Stack') {
+                    // Runs on linux-build itself (it has the docker CLI); --wait blocks
+                    // until postgres, minio and the api pass their healthchecks
+                    steps { sh "docker compose ${E2E_COMPOSE} up -d --build --wait" }
+                }
+                stage('E2E: Playwright') {
+                    // Headless run joined to the stack's network, so http://api:3000 resolves
+                    agent {
+                        docker {
+                            image 'mcr.microsoft.com/playwright:v1.63.0-noble'
+                            args '--network petpaws-e2e_default'
+                            reuseNode true
+                        }
+                    }
+                    environment { API_BASE_URL = 'http://api:3000' }
+                    steps { dir('backend/e2e') { sh 'npm ci && npx playwright test' } }
+                }
+            }
+        }
         stage('Deploy Staging') {
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }
@@ -77,6 +99,12 @@ pipeline {
             junit testResults: 'backend/api/reports/junit.xml', allowEmptyResults: true
             recordCoverage tools: [[parser: 'COBERTURA', pattern: 'backend/api/coverage/cobertura-coverage.xml']],
                            sourceDirectories: [[path: 'backend/api']]
+            junit testResults: 'backend/e2e/results/e2e-junit.xml', allowEmptyResults: true
+            archiveArtifacts artifacts: 'backend/e2e/playwright-report/**', allowEmptyArchive: true
+            publishHTML target: [reportName: 'Playwright Report', reportDir: 'backend/e2e/playwright-report',
+                                 reportFiles: 'index.html', keepAll: true, allowMissing: true, alwaysLinkToLastBuild: true]
+            // Always tear the stack down, even when tests fail, so the next build starts clean
+            sh "docker compose ${E2E_COMPOSE} down -v || true"
         }
     }
 }
