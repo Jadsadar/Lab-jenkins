@@ -31,7 +31,8 @@ pipeline {
             steps { dir('backend/api') { sh 'npm run lint' } }
         }
         stage('Unit Test') {
-            steps { dir('backend/api') { sh 'npm test' } }
+            // test:cov = vitest run --coverage: writes reports/junit.xml and coverage/*
+            steps { dir('backend/api') { sh 'npm run test:cov' } }
         }
         stage('Deploy Staging') {
             when { branch 'develop' }
@@ -47,6 +48,12 @@ pipeline {
     post {
         success { echo "SUCCESS: ${env.APP_NAME} passed on ${env.NODE_ENV}" }
         failure { echo "FAILED at stage: ${env.STAGE_NAME}" }
-        always  { archiveArtifacts artifacts: 'backend/api/npm-debug.log*', allowEmptyArchive: true }
+        always {
+            archiveArtifacts artifacts: 'backend/api/npm-debug.log*', allowEmptyArchive: true
+            // allowEmptyResults: a build that fails before Unit Test has no report yet
+            junit testResults: 'backend/api/reports/junit.xml', allowEmptyResults: true
+            recordCoverage tools: [[parser: 'COBERTURA', pattern: 'backend/api/coverage/cobertura-coverage.xml']],
+                           sourceDirectories: [[path: 'backend/api']]
+        }
     }
 }
