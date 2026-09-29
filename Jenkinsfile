@@ -86,11 +86,15 @@ pipeline {
                     sh 'npm audit --json > audit.json || true'
                     script {
                         // node instead of jq: node:24-alpine has no jq
+                        // Plain indexing: Jenkins' CPS Groovy rejects the spread operator and multiple assignment
                         def counts = sh(
                             script: '''node -e "const v = require('./audit.json').metadata.vulnerabilities; console.log([v.critical, v.high, v.moderate, v.low].join(' '))"''',
                             returnStdout: true
-                        ).trim().split(' ')*.toInteger()
-                        def (critical, high, moderate, low) = counts
+                        ).trim().split(' ')
+                        def critical = counts[0].toInteger()
+                        def high = counts[1].toInteger()
+                        def moderate = counts[2].toInteger()
+                        def low = counts[3].toInteger()
                         echo "npm audit: critical=${critical} high=${high} moderate=${moderate} low=${low}"
                         if (critical > 0) {
                             error("Blocking: ${critical} critical vulnerabilities found")
