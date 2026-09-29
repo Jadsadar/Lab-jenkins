@@ -84,3 +84,14 @@ backend/e2e/test-results/
 cosign.key
 # Lab 07: kind admin kubeconfig, uploaded to Jenkins as a credential only
 kind-kubeconfig.yaml
+
+# Lab 08: Terraform state lives only in the S3 backend; plan files are Jenkins artifacts
+**/.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan.txt
+tf-outputs.json
+inventory.ini
+# Lab 08: Ansible SSH private key, stored only as a Jenkins credential
+lab08_key
