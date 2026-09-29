@@ -45,6 +45,37 @@ pipeline {
                 always { archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true }
             }
         }
+        stage('SAST') {
+            // Static analysis before the build; both tools are independent, so they run in parallel
+            parallel {
+                stage('ESLint Security') {
+                    agent { docker { image 'node:24-alpine'; reuseNode true } }
+                    steps {
+                        dir('backend/api') {
+                            sh 'npm ci'
+                            // Rules come from eslint.config.js; errors fail the stage, warnings are reported only
+                            sh 'npx eslint --plugin security src/'
+                        }
+                    }
+                }
+                stage('Semgrep') {
+                    agent { docker { image 'semgrep/semgrep:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        dir('backend/api') {
+                            // HOME=/tmp: Jenkins runs the container as its own uid, which can't write to the image's HOME
+                            sh '''
+                                export HOME=/tmp
+                                semgrep scan --config p/owasp-top-ten --config p/nodejs \
+                                    --sarif --output semgrep.sarif --metrics=off src/
+                            '''
+                        }
+                    }
+                    post {
+                        always { archiveArtifacts artifacts: 'backend/api/semgrep.sarif', allowEmptyArchive: true }
+                    }
+                }
+            }
+        }
         stage('Build & Test') {
             agent { docker { image 'node:24-alpine'; reuseNode true } }
             stages {
