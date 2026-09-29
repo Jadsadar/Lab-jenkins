@@ -97,12 +97,18 @@ pipeline {
                         def low = counts[3].toInteger()
                         echo "npm audit: critical=${critical} high=${high} moderate=${moderate} low=${low}"
                         if (critical > 0) {
-                            error("Blocking: ${critical} critical vulnerabilities found")
+                            // Marks this stage and the build FAILED (so it can never go green or deploy),
+                            // but lets the pipeline reach the Policy Gate, which then stops it for good.
+                            // Two independent checks: the block still holds if either one is misconfigured.
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                error("Blocking: ${critical} critical vulnerabilities found")
+                            }
+                        } else {
+                            if (high > 0) {
+                                unstable("Warning: ${high} high vulnerabilities found (not blocking)")
+                            }
+                            echo "SCA passed with 0 critical vulnerabilities (warnings allowed)"
                         }
-                        if (high > 0) {
-                            unstable("Warning: ${high} high vulnerabilities found (not blocking)")
-                        }
-                        echo "SCA passed with 0 critical vulnerabilities (warnings allowed)"
                     }
                 }
             }
@@ -167,6 +173,22 @@ pipeline {
                     archiveArtifacts artifacts: 'sbom.cdx.json, sbom.cdx.json.sig, cosign.pub',
                                      allowEmptyArchive: true, fingerprint: true
                 }
+            }
+        }
+        stage('Policy Gate') {
+            // OPA decides from npm audit's report using policy/security.rego.
+            // :latest-debug has a shell; the plain opa image does not.
+            agent { docker { image 'openpolicyagent/opa:latest-debug'; args '--entrypoint=""'; reuseNode true } }
+            steps {
+                // Unit tests first, so a broken policy cannot silently let builds through
+                sh 'opa test policy/ -v'
+                // --fail-defined: exit 1 when the query returns any deny message, 0 when it returns none
+                sh '''
+                    opa eval --format pretty -i backend/api/audit.json -d policy/security.rego "data.security.warn"
+                    opa eval --fail-defined --format pretty -i backend/api/audit.json -d policy/security.rego \
+                        "data.security.deny[msg]"
+                '''
+                echo 'Policy Gate passed: no deny rules fired'
             }
         }
         stage('SonarQube Analysis') {
