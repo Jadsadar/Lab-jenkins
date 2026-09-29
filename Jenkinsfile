@@ -21,6 +21,30 @@ pipeline {
     }
 
     stages {
+        stage('Secrets Detection') {
+            // Runs first: a leaked secret should stop the build before anything else runs.
+            // The image's entrypoint is gitleaks itself; clearing it lets Jenkins run its own commands.
+            agent { docker { image 'zricethezav/gitleaks:latest'; args '--entrypoint=""'; reuseNode true } }
+            steps {
+                // HOME must be writable for git config; safe.directory avoids "dubious ownership"
+                // because the container user differs from the workspace owner
+                sh '''
+                    export HOME=/tmp
+                    git config --global --add safe.directory "$PWD"
+                    # Gitleaks scans history, so a shallow clone would hide older commits
+                    if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+                        git fetch --unshallow || true
+                    fi
+                    gitleaks detect --source . --log-opts="--all" \
+                        --report-format json --report-path gitleaks-report.json \
+                        --redact --exit-code 1 --verbose
+                '''
+            }
+            post {
+                // Archive on failure too: that is when the report matters most
+                always { archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true }
+            }
+        }
         stage('Build & Test') {
             agent { docker { image 'node:24-alpine'; reuseNode true } }
             stages {
