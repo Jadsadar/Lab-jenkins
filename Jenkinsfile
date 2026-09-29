@@ -76,6 +76,36 @@ pipeline {
                 }
             }
         }
+        stage('SCA - npm audit') {
+            // Dependency scan before the build. Policy: critical blocks, high only warns.
+            agent { docker { image 'node:24-alpine'; reuseNode true } }
+            steps {
+                dir('backend/api') {
+                    // npm audit exits non-zero whenever it finds anything, so ignore its exit code
+                    // and decide from the severity counts in the JSON instead
+                    sh 'npm audit --json > audit.json || true'
+                    script {
+                        // node instead of jq: node:24-alpine has no jq
+                        def counts = sh(
+                            script: '''node -e "const v = require('./audit.json').metadata.vulnerabilities; console.log([v.critical, v.high, v.moderate, v.low].join(' '))"''',
+                            returnStdout: true
+                        ).trim().split(' ')*.toInteger()
+                        def (critical, high, moderate, low) = counts
+                        echo "npm audit: critical=${critical} high=${high} moderate=${moderate} low=${low}"
+                        if (critical > 0) {
+                            error("Blocking: ${critical} critical vulnerabilities found")
+                        }
+                        if (high > 0) {
+                            unstable("Warning: ${high} high vulnerabilities found (not blocking)")
+                        }
+                        echo "SCA passed with 0 critical vulnerabilities (warnings allowed)"
+                    }
+                }
+            }
+            post {
+                always { archiveArtifacts artifacts: 'backend/api/audit.json', allowEmptyArchive: true }
+            }
+        }
         stage('Build & Test') {
             agent { docker { image 'node:24-alpine'; reuseNode true } }
             stages {
@@ -139,7 +169,11 @@ pipeline {
             steps { sh 'echo deploying to staging...' }
         }
         stage('Deploy Production') {
-            when { branch 'main' }
+            // beforeInput: check the branch before prompting, so other branches skip without waiting
+            when {
+                beforeInput true
+                branch 'main'
+            }
             input { message 'Deploy to production?' }
             steps { sh 'echo deploying to production...' }
         }
