@@ -16,9 +16,10 @@ pipeline {
         // test never finishes, the build would hold the agent's only executor
         // forever and every queued job would wait. Aborting frees the executor
         // and marks the build as failed so the problem gets noticed.
-        // 45 (not 10) because SonarQube, E2E, the Lab 06 security stages and the Lab 07
-        // image build/scan/deploy each add several minutes.
-        timeout(time: 45, unit: 'MINUTES')
+        // 60 (not 10) because SonarQube, E2E, the Lab 06 security stages, the Lab 07
+        // image build/scan/deploy and the Lab 08 IaC stages each add several minutes,
+        // plus up to 15 minutes waiting for a human at the Terraform approval.
+        timeout(time: 60, unit: 'MINUTES')
     }
 
     stages {
@@ -350,6 +351,62 @@ pipeline {
                         '''
                     }
                     post { always { archiveArtifacts artifacts: 'checkov.sarif', allowEmptyArchive: true } }
+                }
+            }
+        }
+        stage('Terraform Plan') {
+            // --network lab08: reach LocalStack (EC2 API and the S3 state bucket) at localstack:4566
+            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'localstack-aws',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                                 string(credentialsId: 'lab08-ssh-pub', variable: 'TF_VAR_ssh_public_key')]) {
+                    dir('infra/terraform') {
+                        // -reconfigure: the lint stage ran init -backend=false in this same directory
+                        sh 'terraform init -input=false -reconfigure'
+                        sh 'terraform plan -input=false -out=tfplan'
+                        sh 'terraform show -no-color tfplan > tfplan.txt'
+                        script {
+                            // e.g. "Plan: 3 to add, 0 to change, 0 to destroy." for the approval prompt
+                            env.PLAN_SUMMARY = sh(
+                                script: "grep -E '^(Plan:|No changes)' tfplan.txt || echo 'No summary line; see tfplan.txt'",
+                                returnStdout: true
+                            ).trim()
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'infra/terraform/tfplan, infra/terraform/tfplan.txt', allowEmptyArchive: true
+                }
+            }
+        }
+        stage('Approval') {
+            // A human must read the plan and click Apply; without that, nothing is applied.
+            // The timeout aborts the build instead of holding the executor forever.
+            steps {
+                timeout(time: 15, unit: 'MINUTES') {
+                    input message: "Apply this Terraform plan?\n\n${env.PLAN_SUMMARY}\n\n" +
+                                   "Full plan: ${env.BUILD_URL}artifact/infra/terraform/tfplan.txt",
+                          ok: 'Apply'
+                }
+            }
+        }
+        stage('Terraform Apply') {
+            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'localstack-aws',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir('infra/terraform') {
+                        // Apply the saved plan file, not a fresh plan: what was approved is exactly what runs
+                        sh 'terraform apply -input=false tfplan'
+                        sh 'terraform output'
+                        // Read by the Ansible stage to build its inventory
+                        sh 'terraform output -json > tf-outputs.json'
+                    }
                 }
             }
         }
