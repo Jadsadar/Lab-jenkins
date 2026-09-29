@@ -1,0 +1,10 @@
+# Lab 07 local cluster:  kind create cluster --config k8s/kind-config.yaml
+# config_path lets each node read per-registry settings from /etc/containerd/certs.d,
+# where setup-kind.ps1 points localhost:5001 at the kind-registry container.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: taskflow
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"

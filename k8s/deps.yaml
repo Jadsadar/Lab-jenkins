@@ -1,0 +1,75 @@
+# Backing services for taskflow-api inside the kind cluster (lab only: no persistent volumes).
+# /health runs SELECT 1 against Postgres, and the API creates its S3 bucket in MinIO on boot,
+# so both must be up before a smoke test can pass.
+# Passwords come from the taskflow-env Secret, created by setup-kind.ps1 (never committed).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: petpaws }
+            - { name: POSTGRES_DB, value: petpaws }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: taskflow-env, key: POSTGRES_PASSWORD }
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "petpaws", "-d", "petpaws"]
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  selector:
+    matchLabels: { app: minio }
+  template:
+    metadata:
+      labels: { app: minio }
+    spec:
+      containers:
+        - name: minio
+          # Mirrored into the local registry by setup-kind.ps1: quay.io answers 401 to pulls from inside kind
+          image: localhost:5001/minio:lab
+          args: ["server", "/data"]
+          env:
+            - { name: MINIO_ROOT_USER, value: petpaws }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: taskflow-env, key: S3_SECRET_ACCESS_KEY }
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: 9000 }
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector: { app: minio }
+  ports:
+    - port: 9000

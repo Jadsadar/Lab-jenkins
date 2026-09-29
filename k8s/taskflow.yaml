@@ -1,0 +1,100 @@
+# Lab 07 Blue/Green: two identical Deployments that differ only in the `color` label,
+# and one Service (taskflow) whose selector decides which color receives traffic.
+#
+# The pipeline deploys into the idle color, smoke-tests it through its own per-color Service
+# (taskflow-blue / taskflow-green, used only for that test), then patches taskflow's selector.
+# The app listens on API_PORT (default 3000); it is set to 8080 here to match the lab sheet.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskflow-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: taskflow, color: blue }
+  template:
+    metadata:
+      labels: { app: taskflow, color: blue }
+    spec:
+      containers:
+        - name: app # must stay "app": the pipeline runs `kubectl set image ... app=<image>`
+          image: localhost:5001/taskflow-api:bootstrap
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: API_PORT, value: "8080" }
+            - { name: JWT_ACCESS_TTL, value: 15m }
+            - { name: JWT_REFRESH_TTL, value: 30d }
+            - { name: CORS_ORIGIN, value: "*" }
+            - { name: S3_ENDPOINT, value: "http://minio:9000" }
+            - { name: S3_REGION, value: us-east-1 }
+            - { name: S3_BUCKET, value: petpaws }
+            - { name: S3_ACCESS_KEY_ID, value: petpaws }
+            - { name: S3_FORCE_PATH_STYLE, value: "true" }
+          envFrom:
+            - secretRef: { name: taskflow-env }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskflow-green
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: taskflow, color: green }
+  template:
+    metadata:
+      labels: { app: taskflow, color: green }
+    spec:
+      containers:
+        - name: app
+          image: localhost:5001/taskflow-api:bootstrap
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: API_PORT, value: "8080" }
+            - { name: JWT_ACCESS_TTL, value: 15m }
+            - { name: JWT_REFRESH_TTL, value: 30d }
+            - { name: CORS_ORIGIN, value: "*" }
+            - { name: S3_ENDPOINT, value: "http://minio:9000" }
+            - { name: S3_REGION, value: us-east-1 }
+            - { name: S3_BUCKET, value: petpaws }
+            - { name: S3_ACCESS_KEY_ID, value: petpaws }
+            - { name: S3_FORCE_PATH_STYLE, value: "true" }
+          envFrom:
+            - secretRef: { name: taskflow-env }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 3
+---
+# The single traffic Service: switching colors = patching spec.selector.color
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskflow
+spec:
+  selector: { app: taskflow, color: blue }
+  ports:
+    - port: 8080
+---
+# Per-color Services, only for smoke-testing a color before it gets traffic
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskflow-blue
+spec:
+  selector: { app: taskflow, color: blue }
+  ports:
+    - port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskflow-green
+spec:
+  selector: { app: taskflow, color: green }
+  ports:
+    - port: 8080

@@ -82,3 +82,5 @@ backend/e2e/test-results/
 
 # Lab 06: Cosign private key lives only in Jenkins credentials
 cosign.key
+# Lab 07: kind admin kubeconfig, uploaded to Jenkins as a credential only
+kind-kubeconfig.yaml
