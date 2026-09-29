@@ -326,6 +326,33 @@ pipeline {
                 }
             }
         }
+        stage('IaC Security Scan') {
+            // Both tools exit non-zero on any failed check, so either one blocks the pipeline.
+            // Findings that don't apply are skipped inline in the .tf files, each with a reason.
+            parallel {
+                stage('tfsec') {
+                    agent { docker { image 'aquasec/tfsec:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        // First run only writes the SARIF report; the second is the gate and prints the table
+                        sh '''
+                            tfsec infra/terraform --format sarif --out tfsec.sarif --soft-fail
+                            tfsec infra/terraform --no-color
+                        '''
+                    }
+                    post { always { archiveArtifacts artifacts: 'tfsec.sarif', allowEmptyArchive: true } }
+                }
+                stage('checkov') {
+                    agent { docker { image 'bridgecrew/checkov:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        sh '''
+                            checkov -d infra/terraform --framework terraform --compact \
+                                -o cli -o sarif --output-file-path console,checkov.sarif
+                        '''
+                    }
+                    post { always { archiveArtifacts artifacts: 'checkov.sarif', allowEmptyArchive: true } }
+                }
+            }
+        }
         stage('Deploy Staging') {
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }
