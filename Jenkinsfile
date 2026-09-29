@@ -16,8 +16,9 @@ pipeline {
         // test never finishes, the build would hold the agent's only executor
         // forever and every queued job would wait. Aborting frees the executor
         // and marks the build as failed so the problem gets noticed.
-        // 30 (not 10) because SonarQube analysis and E2E add several minutes.
-        timeout(time: 30, unit: 'MINUTES')
+        // 45 (not 10) because SonarQube, E2E, the Lab 06 security stages and the Lab 07
+        // image build/scan/deploy each add several minutes.
+        timeout(time: 45, unit: 'MINUTES')
     }
 
     stages {
@@ -240,6 +241,29 @@ pipeline {
                 }
                 sh 'docker build -t "$IMAGE" backend/api'
                 sh 'docker push "$IMAGE"'
+            }
+        }
+        stage('Container Scan') {
+            // Scans the image built above. docker.sock lets Trivy read it straight from the daemon;
+            // the trivy-cache volume keeps the vulnerability DB between builds so it isn't re-downloaded
+            agent {
+                docker {
+                    image 'aquasec/trivy:latest'
+                    args '--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache'
+                    reuseNode true
+                }
+            }
+            steps {
+                // First run always writes the SARIF report; the second is the gate (exit 1 on HIGH/CRITICAL)
+                // and prints the findings table to the console
+                sh '''
+                    trivy image --format sarif --output trivy.sarif --severity HIGH,CRITICAL "$IMAGE"
+                    trivy image --exit-code 1 --severity HIGH,CRITICAL "$IMAGE"
+                '''
+            }
+            post {
+                // Archive regardless of outcome: a blocked build is when the report matters most
+                always { archiveArtifacts artifacts: 'trivy.sarif', allowEmptyArchive: true }
             }
         }
         stage('Deploy Staging') {
