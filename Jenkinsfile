@@ -124,6 +124,47 @@ pipeline {
                 }
             }
         }
+        stage('Generate SBOM') {
+            // After the build: the SBOM describes the release artifact's dependencies
+            stages {
+                stage('SBOM: Syft') {
+                    // :debug is the only syft image with a shell (the default one is distroless);
+                    // its binary lives at /syft, outside PATH
+                    agent { docker { image 'anchore/syft:debug'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        // Components come from package-lock.json; skipping node_modules avoids scanning them twice
+                        sh '''
+                            /syft scan dir:backend/api --exclude ./node_modules \
+                                --source-name taskflow-api --source-version "${GIT_COMMIT}" \
+                                -o cyclonedx-json=sbom.cdx.json
+                        '''
+                    }
+                }
+                stage('SBOM: Cosign Sign') {
+                    // -dev tag: same cosign build plus a shell, which Jenkins needs to run steps
+                    agent { docker { image 'ghcr.io/sigstore/cosign/cosign:v2.6.1-dev'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        withCredentials([file(credentialsId: 'cosign-key', variable: 'COSIGN_KEY'),
+                                         string(credentialsId: 'cosign-pass', variable: 'COSIGN_PASSWORD')]) {
+                            // --tlog-upload=false: keep the signature local instead of publishing it
+                            // to the public Rekor transparency log
+                            sh '''
+                                cosign sign-blob --yes --key "$COSIGN_KEY" --tlog-upload=false \
+                                    --output-signature sbom.cdx.json.sig sbom.cdx.json
+                                cosign verify-blob --key cosign.pub --insecure-ignore-tlog=true \
+                                    --signature sbom.cdx.json.sig sbom.cdx.json
+                            '''
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'sbom.cdx.json, sbom.cdx.json.sig, cosign.pub',
+                                     allowEmptyArchive: true, fingerprint: true
+                }
+            }
+        }
         stage('SonarQube Analysis') {
             // Scanner 5.0 matches the SonarQube 9.9 LTS server; settings live in
             // backend/api/sonar-project.properties
