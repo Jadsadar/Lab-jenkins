@@ -231,6 +231,17 @@ pipeline {
                 }
             }
         }
+        stage('Build Image') {
+            // Immutable tag from the commit SHA, never `latest`, so every deploy maps back to exact source.
+            // The localhost:5001 prefix is the local registry:2 container (kind-registry).
+            steps {
+                script {
+                    env.IMAGE = "localhost:5001/taskflow-api:${env.GIT_COMMIT.take(7)}"
+                }
+                sh 'docker build -t "$IMAGE" backend/api'
+                sh 'docker push "$IMAGE"'
+            }
+        }
         stage('Deploy Staging') {
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }
