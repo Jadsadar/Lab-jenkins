@@ -266,6 +266,47 @@ pipeline {
                 always { archiveArtifacts artifacts: 'trivy.sarif', allowEmptyArchive: true }
             }
         }
+        stage('Blue/Green Deploy') {
+            // kubectl runs in alpine/k8s; --network kind lets it reach the cluster API at
+            // taskflow-control-plane:6443 (the address in the kind-kubeconfig credential)
+            agent { docker { image 'alpine/k8s:1.31.4'; args '--entrypoint="" --network kind'; reuseNode true } }
+            environment { KUBECONFIG = credentials('kind-kubeconfig') }
+            steps {
+                script {
+                    // env.* rather than def: post { failure } below needs CURRENT to roll back
+                    env.CURRENT = sh(
+                        script: "kubectl get svc taskflow -o jsonpath='{.spec.selector.color}'",
+                        returnStdout: true
+                    ).trim()
+                    env.NEXT = env.CURRENT == 'blue' ? 'green' : 'blue'
+                    echo "Live color: ${env.CURRENT}, deploying ${env.IMAGE} to ${env.NEXT}"
+
+                    sh "kubectl set image deployment/taskflow-${env.NEXT} app=${env.IMAGE}"
+                    // --timeout: a broken image fails the stage instead of hanging the build
+                    sh "kubectl rollout status deployment/taskflow-${env.NEXT} --timeout=120s"
+
+                    // smoke test the new pods directly, bypassing the Service
+                    sh "kubectl delete pod smoke-${BUILD_NUMBER} --ignore-not-found"
+                    sh "kubectl run smoke-${BUILD_NUMBER} --rm -i --restart=Never --image=curlimages/curl -- " +
+                       "curl -sf http://taskflow-${env.NEXT}:8080/health"
+
+                    sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.NEXT}\"}}}'"
+                    echo "Switched traffic from ${env.CURRENT} to ${env.NEXT}"
+                }
+            }
+            post {
+                // Automated rollback: point the Service back at the color that was live before this build.
+                // Stage-level post because it needs this stage's kubectl container and credential.
+                failure {
+                    script {
+                        if (env.CURRENT) {
+                            sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.CURRENT}\"}}}'"
+                            echo "ROLLBACK: traffic restored to ${env.CURRENT}"
+                        }
+                    }
+                }
+            }
+        }
         stage('Deploy Staging') {
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }
