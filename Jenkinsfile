@@ -307,6 +307,25 @@ pipeline {
                 }
             }
         }
+        stage('IaC Lint & Validate') {
+            // Offline checks only: -backend=false skips the S3 state, so no LocalStack needed here
+            parallel {
+                stage('Terraform Validate') {
+                    agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        dir('infra/terraform') {
+                            sh 'terraform init -backend=false'
+                            sh 'terraform validate'
+                            sh 'terraform fmt -check -recursive'
+                        }
+                    }
+                }
+                stage('Ansible Lint') {
+                    agent { docker { image 'pipelinecomponents/ansible-lint:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps { sh 'ansible-lint infra/ansible/playbook.yml' }
+                }
+            }
+        }
         stage('Deploy Staging') {
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }

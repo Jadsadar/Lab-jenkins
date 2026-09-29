@@ -1,0 +1,33 @@
+---
+# Lab 08: configures the host Terraform provisioned. The inventory is generated in the
+# pipeline from `terraform output` (see the "Configure with Ansible" stage).
+- name: Configure the taskflow-api host
+  hosts: taskflow
+  become: true
+  vars:
+    # Image built and pushed by the Lab 07 Build Image stage; the pipeline passes it in IMAGE
+    taskflow_image: "{{ lookup('ansible.builtin.env', 'IMAGE') }}"
+
+  tasks:
+    - name: Install Node.js and Docker
+      ansible.builtin.apt:
+        name:
+          - nodejs
+          - docker.io
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Read the installed Node.js version
+      ansible.builtin.command: node --version
+      register: node_version
+      changed_when: false
+
+    - name: Report the installed Node.js version
+      ansible.builtin.debug:
+        msg: "Node.js {{ node_version.stdout }}"
+
+    - name: Pull the taskflow-api image built in Lab 07
+      ansible.builtin.command: docker pull {{ taskflow_image }}
+      register: pull_result
+      changed_when: "'Downloaded newer image' in pull_result.stdout"
