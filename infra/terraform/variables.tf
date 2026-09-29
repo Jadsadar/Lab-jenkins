@@ -25,7 +25,7 @@ variable "instance_type" {
 variable "allowed_cidr" {
   description = "Network allowed to reach the API on port 8080"
   type        = string
-  default     = "0.0.0.0/0"
+  default     = "10.0.0.0/16"
 }
 
 variable "ssh_public_key" {
