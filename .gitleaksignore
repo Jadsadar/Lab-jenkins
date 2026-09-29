@@ -1,0 +1,5 @@
+# Reviewed false positives (Lab 06). Format: <commit>:<file>:<rule>:<line>
+# NestJS README badge URL with a placeholder token (abc123def456), not a real credential
+2d980c470b24b354e5a57848c9caab1be9fe7438:backend/api/README.md:generic-api-key:5
+# Firebase client API key: a public app identifier shipped in every client build, not a secret
+036b349f6c2cb7c21ec3326211c02f736771fe2c:lib/firebase_options.dart:gcp-api-key:36
