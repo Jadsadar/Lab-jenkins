@@ -1,0 +1,48 @@
+# Lab 09 Task 5: pipeline SLO and symptom-based alerts.
+# SLO: 95% of builds finish within 6 minutes (360 s), evaluated over 7 days.
+groups:
+  - name: jenkins-slo
+    rules:
+      # Share of builds that succeeded over the last 7 days (the Build Success Rate panel).
+      # "> 0" drops the result when no build finished in the window (instead of 0/0 = NaN);
+      # "or" then falls back to the all-time ratio since Jenkins last started.
+      - record: jenkins:build_success_ratio:7d
+        expr: |
+          (
+            sum(increase(default_jenkins_builds_success_build_count_total[7d]))
+              /
+            (sum(increase(default_jenkins_builds_total_build_count_total[7d])) > 0)
+          )
+          or
+          (
+            sum(default_jenkins_builds_success_build_count_total)
+              /
+            sum(default_jenkins_builds_total_build_count_total)
+          )
+
+      # p95 build duration in seconds. The plugin exposes this as a summary quantile across
+      # all jobs (no histogram buckets), so the SLO is checked as "p95 <= 360 s"; that is the
+      # same statement as "95% of builds finish within 6 minutes".
+      - record: jenkins:build_duration_p95_seconds
+        expr: max(jenkins_job_building_duration{quantile="0.95"})
+
+      # How often the SLO held over the 7-day window (1 = held the whole time)
+      - record: jenkins:build_duration_slo_compliance:7d
+        expr: avg_over_time((jenkins:build_duration_p95_seconds <= bool 360)[7d:5m])
+
+      - alert: JenkinsBuildDurationSLOBreach
+        expr: jenkins:build_duration_p95_seconds > 360
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 build duration is {{ $value | humanizeDuration }}, above the 6 minute SLO"
+
+      # From the lab sheet, unchanged: builds are waiting in the queue, continuously
+      - alert: JenkinsQueueBacklog
+        expr: jenkins_queue_size_value > 0 and avg_over_time(jenkins_queue_size_value[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Jenkins build queue backlog exceeds 2 minutes"

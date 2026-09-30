@@ -10,6 +10,11 @@ pipeline {
         // this box is ticked (Build with Parameters), so feature-branch pushes get feedback faster.
         booleanParam(name: 'FULL_CHECKS', defaultValue: false,
                      description: 'Also run SonarQube, Quality Gate and E2E on this branch')
+        // Provisioning (state bucket, plan, human approval, apply, Ansible) needs LocalStack and
+        // someone to click Apply, so it is opt-in outside main. IaC lint and security scans still
+        // run on every build.
+        booleanParam(name: 'APPLY_INFRA', defaultValue: false,
+                     description: 'Run Terraform plan/approval/apply and Ansible on this branch')
     }
 
     environment {
@@ -416,6 +421,7 @@ spec:
         stage('State Bucket') {
             // LocalStack's free edition keeps everything in memory, so a restart wipes the state
             // bucket. Recreate it (versioned) if missing; on real S3 this bucket would simply exist.
+            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
             agent { docker { image 'amazon/aws-cli:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -434,6 +440,7 @@ spec:
         }
         stage('Terraform Plan') {
             // --network lab08: reach LocalStack (EC2 API and the S3 state bucket) at localstack:4566
+            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
             agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -464,6 +471,7 @@ spec:
         stage('Approval') {
             // A human must read the plan and click Apply; without that, nothing is applied.
             // The timeout aborts the build instead of holding the executor forever.
+            when { anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
             steps {
                 timeout(time: 15, unit: 'MINUTES') {
                     input message: "Apply this Terraform plan?\n\n${env.PLAN_SUMMARY}\n\n" +
@@ -473,6 +481,7 @@ spec:
             }
         }
         stage('Terraform Apply') {
+            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
             agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -489,6 +498,7 @@ spec:
             }
         }
         stage('Configure with Ansible') {
+            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
             agent { docker { image 'alpine/ansible:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
             environment {
                 // LocalStack's free EC2 is a mock with no machine behind its IP, so SSH goes to the
