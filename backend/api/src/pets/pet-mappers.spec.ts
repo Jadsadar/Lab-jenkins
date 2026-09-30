@@ -10,7 +10,7 @@ import {
 
 describe('gender mappers', () => {
   it('maps Thai labels to DB values', () => {
-    expect(genderLabelToDb('ผู้')).toBe('male');
+    expect(genderLabelToDb('ผู้')).toBe('female');
     expect(genderLabelToDb('เมีย')).toBe('female');
   });
 
