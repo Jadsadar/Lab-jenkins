@@ -63,10 +63,15 @@ pipeline {
                 always { archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true }
             }
         }
-        stage('SAST') {
-            // Static analysis before the build; both tools are independent, so they run in parallel
+        stage('Quality Checks') {
+            // Lab 10: every check that depends only on the source runs side by side: lint + unit
+            // tests, SAST, SCA and the IaC checks. failFast stops the rest as soon as one fails, so a
+            // broken change gets feedback in the time of the slowest check instead of their sum.
+            // Stages that need an earlier result (SBOM/Policy Gate need the audit, the image needs
+            // the tests to pass, deploy needs the scanned image) stay sequential below.
+            failFast true
             parallel {
-                stage('ESLint Security') {
+                stage('SAST: ESLint Security') {
                     // npm-cache volume: packages are downloaded once and reused by every npm ci
                     agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
                     steps {
@@ -78,7 +83,7 @@ pipeline {
                         }
                     }
                 }
-                stage('Semgrep') {
+                stage('SAST: Semgrep') {
                     agent { docker { image 'semgrep/semgrep:latest'; args '--entrypoint=""'; reuseNode true } }
                     steps {
                         dir('backend/api') {
@@ -94,56 +99,54 @@ pipeline {
                         always { archiveArtifacts artifacts: 'backend/api/semgrep.sarif', allowEmptyArchive: true }
                     }
                 }
-            }
-        }
-        stage('SCA - npm audit') {
-            // Dependency scan before the build. Policy: critical blocks, high only warns.
-            agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
-            steps {
-                dir('backend/api') {
-                    // npm audit exits non-zero whenever it finds anything, so ignore its exit code
-                    // and decide from the severity counts in the JSON instead
-                    sh 'npm audit --json > audit.json || true'
-                    script {
-                        // node instead of jq: node:24-alpine has no jq
-                        // Plain indexing: Jenkins' CPS Groovy rejects the spread operator and multiple assignment
-                        def counts = sh(
-                            script: '''node -e "const v = require('./audit.json').metadata.vulnerabilities; console.log([v.critical, v.high, v.moderate, v.low].join(' '))"''',
-                            returnStdout: true
-                        ).trim().split(' ')
-                        def critical = counts[0].toInteger()
-                        def high = counts[1].toInteger()
-                        def moderate = counts[2].toInteger()
-                        def low = counts[3].toInteger()
-                        echo "npm audit: critical=${critical} high=${high} moderate=${moderate} low=${low}"
-                        if (critical > 0) {
-                            // Marks this stage and the build FAILED (so it can never go green or deploy),
-                            // but lets the pipeline reach the Policy Gate, which then stops it for good.
-                            // Two independent checks: the block still holds if either one is misconfigured.
-                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                error("Blocking: ${critical} critical vulnerabilities found")
+                stage('SCA - npm audit') {
+                    // Dependency scan before the build. Policy: critical blocks, high only warns.
+                    agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
+                    steps {
+                        dir('backend/api') {
+                            // npm audit exits non-zero whenever it finds anything, so ignore its exit code
+                            // and decide from the severity counts in the JSON instead
+                            sh 'npm audit --json > audit.json || true'
+                            script {
+                                // node instead of jq: node:24-alpine has no jq
+                                // Plain indexing: Jenkins' CPS Groovy rejects the spread operator and multiple assignment
+                                def counts = sh(
+                                    script: '''node -e "const v = require('./audit.json').metadata.vulnerabilities; console.log([v.critical, v.high, v.moderate, v.low].join(' '))"''',
+                                    returnStdout: true
+                                ).trim().split(' ')
+                                def critical = counts[0].toInteger()
+                                def high = counts[1].toInteger()
+                                def moderate = counts[2].toInteger()
+                                def low = counts[3].toInteger()
+                                echo "npm audit: critical=${critical} high=${high} moderate=${moderate} low=${low}"
+                                if (critical > 0) {
+                                    // Marks this stage and the build FAILED (so it can never go green or deploy),
+                                    // but lets the pipeline reach the Policy Gate, which then stops it for good.
+                                    // Two independent checks: the block still holds if either one is misconfigured.
+                                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                        error("Blocking: ${critical} critical vulnerabilities found")
+                                    }
+                                } else {
+                                    if (high > 0) {
+                                        unstable("Warning: ${high} high vulnerabilities found (not blocking)")
+                                    }
+                                    echo "SCA passed with 0 critical vulnerabilities (warnings allowed)"
+                                }
                             }
-                        } else {
-                            if (high > 0) {
-                                unstable("Warning: ${high} high vulnerabilities found (not blocking)")
-                            }
-                            echo "SCA passed with 0 critical vulnerabilities (warnings allowed)"
                         }
                     }
+                    post {
+                        always { archiveArtifacts artifacts: 'backend/api/audit.json', allowEmptyArchive: true }
+                    }
                 }
-            }
-            post {
-                always { archiveArtifacts artifacts: 'backend/api/audit.json', allowEmptyArchive: true }
-            }
-        }
-        stage('Build & Test') {
-            // Lab 09: runs on an ephemeral Kubernetes pod in the kind cluster instead of a Docker
-            // container on linux-build. The Kubernetes plugin creates the pod for this stage and
-            // deletes it afterwards. node:24 (not the lab's node:20): the app needs TypeScript 6 / Vitest 4.
-            agent {
-                kubernetes {
-                    cloud 'kind'
-                    yaml '''
+                stage('Lint & Unit Test') {
+                    // Lab 09: runs on an ephemeral Kubernetes pod in the kind cluster instead of a Docker
+                    // container on linux-build. The Kubernetes plugin creates the pod for this stage and
+                    // deletes it afterwards. node:24 (not the lab's node:20): the app needs TypeScript 6 / Vitest 4.
+                    agent {
+                        kubernetes {
+                            cloud 'kind'
+                            yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -155,30 +158,72 @@ spec:
     resources:
       requests: { cpu: 500m, memory: 512Mi }
 '''
-                    defaultContainer 'node'
-                }
-            }
-            stages {
-                stage('Install') {
-                    steps {
-                        echo "App: ${env.APP_NAME}, Env: ${env.NODE_ENV}"
-                        dir('backend/api') { sh 'npm ci --prefer-offline --no-audit --no-fund' }
+                            defaultContainer 'node'
+                        }
+                    }
+                    stages {
+                        stage('Install') {
+                            steps {
+                                echo "App: ${env.APP_NAME}, Env: ${env.NODE_ENV}"
+                                dir('backend/api') { sh 'npm ci --prefer-offline --no-audit --no-fund' }
+                            }
+                        }
+                        stage('Lint') {
+                            steps { dir('backend/api') { sh 'npm run lint' } }
+                        }
+                        stage('Unit Test') {
+                            // test:cov = vitest run --coverage: writes reports/junit.xml and coverage/*
+                            steps { dir('backend/api') { sh 'npm run test:cov' } }
+                        }
+                    }
+                    post {
+                        always {
+                            // The pod and its workspace are deleted after this stage, so hand the test and
+                            // coverage reports to linux-build (SonarQube and the final junit/coverage steps read them)
+                            stash name: 'test-reports', allowEmpty: true,
+                                  includes: 'backend/api/reports/**, backend/api/coverage/**'
+                        }
                     }
                 }
-                stage('Lint') {
-                    steps { dir('backend/api') { sh 'npm run lint' } }
+                stage('IaC: Terraform Validate') {
+                    // tf-plugins volume = TF_PLUGIN_CACHE_DIR: the aws provider is downloaded once, not per init
+                    agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" -v tf-plugins:/tf-plugins'; reuseNode true } }
+                    // Own data dir: the workspace survives between builds, and its .terraform/ remembers
+                    // the S3 backend from the last Plan stage, which would make even -backend=false ask
+                    // for credentials. A throwaway dir keeps this check offline and credential-free.
+                    environment { TF_DATA_DIR = '/tmp/tf-validate' }
+                    steps {
+                        dir('infra/terraform') {
+                            sh 'terraform init -backend=false'
+                            sh 'terraform validate'
+                            sh 'terraform fmt -check -recursive'
+                        }
+                    }
                 }
-                stage('Unit Test') {
-                    // test:cov = vitest run --coverage: writes reports/junit.xml and coverage/*
-                    steps { dir('backend/api') { sh 'npm run test:cov' } }
+                stage('IaC: Ansible Lint') {
+                    agent { docker { image 'pipelinecomponents/ansible-lint:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps { sh 'ansible-lint infra/ansible/playbook.yml' }
                 }
-            }
-            post {
-                always {
-                    // The pod and its workspace are deleted after this stage, so hand the test and
-                    // coverage reports to linux-build (SonarQube and the final junit/coverage steps read them)
-                    stash name: 'test-reports', allowEmpty: true,
-                          includes: 'backend/api/reports/**, backend/api/coverage/**'
+                stage('IaC: tfsec') {
+                    agent { docker { image 'aquasec/tfsec:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        // First run only writes the SARIF report; the second is the gate and prints the table
+                        sh '''
+                            tfsec infra/terraform --format sarif --out tfsec.sarif --soft-fail
+                            tfsec infra/terraform --no-color
+                        '''
+                    }
+                    post { always { archiveArtifacts artifacts: 'tfsec.sarif', allowEmptyArchive: true } }
+                }
+                stage('IaC: checkov') {
+                    agent { docker { image 'bridgecrew/checkov:latest'; args '--entrypoint=""'; reuseNode true } }
+                    steps {
+                        sh '''
+                            checkov -d infra/terraform --framework terraform --compact \
+                                -o cli -o sarif --output-file-path console,checkov.sarif
+                        '''
+                    }
+                    post { always { archiveArtifacts artifacts: 'checkov.sarif', allowEmptyArchive: true } }
                 }
             }
         }
@@ -364,57 +409,6 @@ spec:
                             echo "ROLLBACK: traffic restored to ${env.CURRENT}"
                         }
                     }
-                }
-            }
-        }
-        stage('IaC Lint & Validate') {
-            // Offline checks only: -backend=false skips the S3 state, so no LocalStack needed here
-            parallel {
-                stage('Terraform Validate') {
-                    // tf-plugins volume = TF_PLUGIN_CACHE_DIR: the aws provider is downloaded once, not per init
-                    agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" -v tf-plugins:/tf-plugins'; reuseNode true } }
-                    // Own data dir: the workspace survives between builds, and its .terraform/ remembers
-                    // the S3 backend from the last Plan stage, which would make even -backend=false ask
-                    // for credentials. A throwaway dir keeps this check offline and credential-free.
-                    environment { TF_DATA_DIR = '/tmp/tf-validate' }
-                    steps {
-                        dir('infra/terraform') {
-                            sh 'terraform init -backend=false'
-                            sh 'terraform validate'
-                            sh 'terraform fmt -check -recursive'
-                        }
-                    }
-                }
-                stage('Ansible Lint') {
-                    agent { docker { image 'pipelinecomponents/ansible-lint:latest'; args '--entrypoint=""'; reuseNode true } }
-                    steps { sh 'ansible-lint infra/ansible/playbook.yml' }
-                }
-            }
-        }
-        stage('IaC Security Scan') {
-            // Both tools exit non-zero on any failed check, so either one blocks the pipeline.
-            // Findings that don't apply are skipped inline in the .tf files, each with a reason.
-            parallel {
-                stage('tfsec') {
-                    agent { docker { image 'aquasec/tfsec:latest'; args '--entrypoint=""'; reuseNode true } }
-                    steps {
-                        // First run only writes the SARIF report; the second is the gate and prints the table
-                        sh '''
-                            tfsec infra/terraform --format sarif --out tfsec.sarif --soft-fail
-                            tfsec infra/terraform --no-color
-                        '''
-                    }
-                    post { always { archiveArtifacts artifacts: 'tfsec.sarif', allowEmptyArchive: true } }
-                }
-                stage('checkov') {
-                    agent { docker { image 'bridgecrew/checkov:latest'; args '--entrypoint=""'; reuseNode true } }
-                    steps {
-                        sh '''
-                            checkov -d infra/terraform --framework terraform --compact \
-                                -o cli -o sarif --output-file-path console,checkov.sarif
-                        '''
-                    }
-                    post { always { archiveArtifacts artifacts: 'checkov.sarif', allowEmptyArchive: true } }
                 }
             }
         }
