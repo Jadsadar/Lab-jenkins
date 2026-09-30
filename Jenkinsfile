@@ -132,7 +132,27 @@ pipeline {
             }
         }
         stage('Build & Test') {
-            agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
+            // Lab 09: runs on an ephemeral Kubernetes pod in the kind cluster instead of a Docker
+            // container on linux-build. The Kubernetes plugin creates the pod for this stage and
+            // deletes it afterwards. node:24 (not the lab's node:20): the app needs TypeScript 6 / Vitest 4.
+            agent {
+                kubernetes {
+                    cloud 'kind'
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: node
+    image: node:24-alpine
+    command: ['cat']
+    tty: true
+    resources:
+      requests: { cpu: 500m, memory: 512Mi }
+'''
+                    defaultContainer 'node'
+                }
+            }
             stages {
                 stage('Install') {
                     steps {
@@ -146,6 +166,14 @@ pipeline {
                 stage('Unit Test') {
                     // test:cov = vitest run --coverage: writes reports/junit.xml and coverage/*
                     steps { dir('backend/api') { sh 'npm run test:cov' } }
+                }
+            }
+            post {
+                always {
+                    // The pod and its workspace are deleted after this stage, so hand the test and
+                    // coverage reports to linux-build (SonarQube and the final junit/coverage steps read them)
+                    stash name: 'test-reports', allowEmpty: true,
+                          includes: 'backend/api/reports/**, backend/api/coverage/**'
                 }
             }
         }
@@ -215,6 +243,8 @@ pipeline {
             }
             agent { docker { image 'sonarsource/sonar-scanner-cli:5.0'; reuseNode true } }
             steps {
+                // Coverage (lcov) was produced on the Build & Test pod
+                unstash 'test-reports'
                 withSonarQubeEnv('SonarQube') {
                     // SonarQube 9.9 authenticates with sonar.login (sonar.token is 10.0+)
                     dir('backend/api') { sh 'sonar-scanner -Dsonar.login=$SONAR_AUTH_TOKEN' }
@@ -501,6 +531,11 @@ pipeline {
         success { echo "SUCCESS: ${env.APP_NAME} passed on ${env.NODE_ENV}" }
         failure { echo "FAILED at stage: ${env.STAGE_NAME}" }
         always {
+            script {
+                // Reports come from the Build & Test pod; the stash is missing if the build
+                // stopped before that stage, and the junit step below already allows empty results
+                try { unstash 'test-reports' } catch (err) { echo 'No test reports to collect' }
+            }
             archiveArtifacts artifacts: 'backend/api/npm-debug.log*', allowEmptyArchive: true
             // allowEmptyResults: a build that fails before Unit Test has no report yet
             junit testResults: 'backend/api/reports/junit.xml', allowEmptyResults: true
