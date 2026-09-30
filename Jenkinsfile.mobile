@@ -17,6 +17,14 @@ spec:
     tty: true
     resources:
       requests: { cpu: "1", memory: 3Gi }
+    # The pod is thrown away after every build, so without these the Gradle dependencies and the
+    # NDK/CMake that the Android build installs (~2 GB) were downloaded again each time.
+    env:
+      - { name: GRADLE_USER_HOME, value: /cache/gradle }
+    volumeMounts:
+      - { name: gradle-cache, mountPath: /cache/gradle }
+      - { name: ndk-cache, mountPath: /opt/android-sdk-linux/ndk }
+      - { name: cmake-cache, mountPath: /opt/android-sdk-linux/cmake }
   - name: osv
     image: ghcr.io/google/osv-scanner:latest
     command: ['cat']
@@ -25,6 +33,11 @@ spec:
     image: node:24-alpine
     command: ['cat']
     tty: true
+  # Kept on the kind node's disk between builds (single-node lab cluster)
+  volumes:
+    - { name: gradle-cache, hostPath: { path: /var/cache/flutter-ci/gradle, type: DirectoryOrCreate } }
+    - { name: ndk-cache, hostPath: { path: /var/cache/flutter-ci/ndk, type: DirectoryOrCreate } }
+    - { name: cmake-cache, hostPath: { path: /var/cache/flutter-ci/cmake, type: DirectoryOrCreate } }
 '''
             defaultContainer 'flutter'
         }
