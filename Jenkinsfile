@@ -11,10 +11,11 @@ pipeline {
         booleanParam(name: 'FULL_CHECKS', defaultValue: false,
                      description: 'Also run SonarQube, Quality Gate and E2E on this branch')
         // Provisioning (state bucket, plan, human approval, apply, Ansible) needs LocalStack and
-        // someone to click Apply, so it is opt-in outside main. IaC lint and security scans still
+        // someone to click Apply, so it is opt-in on every branch, main included: an application
+        // release should not wait on an infrastructure change. IaC lint and security scans still
         // run on every build.
         booleanParam(name: 'APPLY_INFRA', defaultValue: false,
-                     description: 'Run Terraform plan/approval/apply and Ansible on this branch')
+                     description: 'Run Terraform plan/approval/apply and Ansible on this build')
     }
 
     environment {
@@ -371,51 +372,10 @@ spec:
                 always { archiveArtifacts artifacts: 'trivy.sarif', allowEmptyArchive: true }
             }
         }
-        stage('Blue/Green Deploy') {
-            // kubectl runs in alpine/k8s; --network kind lets it reach the cluster API at
-            // taskflow-control-plane:6443 (the address in the kind-kubeconfig credential)
-            agent { docker { image 'alpine/k8s:1.31.4'; args '--entrypoint="" --network kind'; reuseNode true } }
-            environment { KUBECONFIG = credentials('kind-kubeconfig') }
-            steps {
-                script {
-                    // env.* rather than def: post { failure } below needs CURRENT to roll back
-                    env.CURRENT = sh(
-                        script: "kubectl get svc taskflow -o jsonpath='{.spec.selector.color}'",
-                        returnStdout: true
-                    ).trim()
-                    env.NEXT = env.CURRENT == 'blue' ? 'green' : 'blue'
-                    echo "Live color: ${env.CURRENT}, deploying ${env.IMAGE} to ${env.NEXT}"
-
-                    sh "kubectl set image deployment/taskflow-${env.NEXT} app=${env.IMAGE}"
-                    // --timeout: a broken image fails the stage instead of hanging the build
-                    sh "kubectl rollout status deployment/taskflow-${env.NEXT} --timeout=120s"
-
-                    // smoke test the new pods directly, bypassing the Service
-                    sh "kubectl delete pod smoke-${BUILD_NUMBER} --ignore-not-found"
-                    sh "kubectl run smoke-${BUILD_NUMBER} --rm -i --restart=Never --image=curlimages/curl -- " +
-                       "curl -sf http://taskflow-${env.NEXT}:8080/health"
-
-                    sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.NEXT}\"}}}'"
-                    echo "Switched traffic from ${env.CURRENT} to ${env.NEXT}"
-                }
-            }
-            post {
-                // Automated rollback: point the Service back at the color that was live before this build.
-                // Stage-level post because it needs this stage's kubectl container and credential.
-                failure {
-                    script {
-                        if (env.CURRENT) {
-                            sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.CURRENT}\"}}}'"
-                            echo "ROLLBACK: traffic restored to ${env.CURRENT}"
-                        }
-                    }
-                }
-            }
-        }
         stage('State Bucket') {
             // LocalStack's free edition keeps everything in memory, so a restart wipes the state
             // bucket. Recreate it (versioned) if missing; on real S3 this bucket would simply exist.
-            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
+            when { beforeAgent true; expression { params.APPLY_INFRA } }
             agent { docker { image 'amazon/aws-cli:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -434,7 +394,7 @@ spec:
         }
         stage('Terraform Plan') {
             // --network lab08: reach LocalStack (EC2 API and the S3 state bucket) at localstack:4566
-            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
+            when { beforeAgent true; expression { params.APPLY_INFRA } }
             agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -465,7 +425,7 @@ spec:
         stage('Approval') {
             // A human must read the plan and click Apply; without that, nothing is applied.
             // The timeout aborts the build instead of holding the executor forever.
-            when { anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
+            when { expression { params.APPLY_INFRA } }
             steps {
                 timeout(time: 15, unit: 'MINUTES') {
                     input message: "Apply this Terraform plan?\n\n${env.PLAN_SUMMARY}\n\n" +
@@ -475,7 +435,7 @@ spec:
             }
         }
         stage('Terraform Apply') {
-            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
+            when { beforeAgent true; expression { params.APPLY_INFRA } }
             agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
@@ -492,7 +452,7 @@ spec:
             }
         }
         stage('Configure with Ansible') {
-            when { beforeAgent true; anyOf { branch 'main'; expression { params.APPLY_INFRA } } }
+            when { beforeAgent true; expression { params.APPLY_INFRA } }
             agent { docker { image 'alpine/ansible:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
             environment {
                 // LocalStack's free EC2 is a mock with no machine behind its IP, so SSH goes to the
@@ -520,14 +480,75 @@ spec:
             when { branch 'develop' }
             steps { sh 'echo deploying to staging...' }
         }
+        stage('Pipeline Health Gate') {
+            // Lab 10: refuse to deploy while the pipeline itself is unhealthy. ci/health-gate.mjs asks the
+            // Lab 09 Prometheus how many of this job's last 20 builds succeeded and fails below 90%.
+            // --network jenkins: Prometheus is the "prometheus" service on that Docker network.
+            // demo/* branches run it too (with a shorter minimum history) so the block can be shown
+            // live without touching main.
+            when {
+                beforeAgent true
+                anyOf { branch 'main'; branch pattern: 'demo/.*', comparator: 'REGEXP' }
+            }
+            agent { docker { image 'node:24-alpine'; args '--network jenkins'; reuseNode true } }
+            environment {
+                PROMETHEUS_URL = 'http://prometheus:9090'
+                MIN_SUCCESS_RATE = '0.9'
+                WINDOW_BUILDS = '20'
+                MIN_HISTORY = "${env.BRANCH_NAME == 'main' ? '5' : '1'}"
+            }
+            steps { sh 'node ci/health-gate.mjs' }
+        }
         stage('Deploy Production') {
-            // beforeInput: check the branch before prompting, so other branches skip without waiting
+            // Build -> Scan -> (Health Gate) -> approval -> Blue/Green deploy, main only.
+            // beforeInput/beforeAgent: other branches skip without prompting or starting kubectl.
             when {
                 beforeInput true
+                beforeAgent true
                 branch 'main'
             }
-            input { message 'Deploy to production?' }
-            steps { sh 'echo deploying to production...' }
+            options { timeout(time: 30, unit: 'MINUTES') } // an unanswered prompt must not hold the executor
+            input { message 'Deploy to production?'; ok 'Deploy' }
+            // kubectl runs in alpine/k8s; --network kind lets it reach the cluster API at
+            // taskflow-control-plane:6443 (the address in the kind-kubeconfig credential)
+            agent { docker { image 'alpine/k8s:1.31.4'; args '--entrypoint="" --network kind'; reuseNode true } }
+            environment { KUBECONFIG = credentials('kind-kubeconfig') }
+            steps {
+                script {
+                    // env.* rather than def: post { failure } below needs CURRENT to roll back
+                    env.CURRENT = sh(
+                        script: "kubectl get svc taskflow -o jsonpath='{.spec.selector.color}'",
+                        returnStdout: true
+                    ).trim()
+                    env.NEXT = env.CURRENT == 'blue' ? 'green' : 'blue'
+                    echo "Live color: ${env.CURRENT}, deploying ${env.IMAGE} to ${env.NEXT}"
+
+                    sh "kubectl set image deployment/taskflow-${env.NEXT} app=${env.IMAGE}"
+                    // --timeout: a broken image fails the stage instead of hanging the build
+                    sh "kubectl rollout status deployment/taskflow-${env.NEXT} --timeout=120s"
+
+                    // smoke test the new pods directly, bypassing the Service
+                    sh "kubectl delete pod smoke-${BUILD_NUMBER} --ignore-not-found"
+                    sh "kubectl run smoke-${BUILD_NUMBER} --rm -i --restart=Never --image=curlimages/curl -- " +
+                       "curl -sf http://taskflow-${env.NEXT}:8080/health"
+
+                    sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.NEXT}\"}}}'"
+                    echo "Switched traffic from ${env.CURRENT} to ${env.NEXT}"
+                }
+            }
+            post {
+                // Automated rollback: point the Service back at the color that was live before this build.
+                // Stage-level post because it needs this stage's kubectl container and credential.
+                // Manual steps for when this is not enough: docs/ROLLBACK_RUNBOOK.md
+                failure {
+                    script {
+                        if (env.CURRENT) {
+                            sh "kubectl patch svc taskflow -p '{\"spec\":{\"selector\":{\"color\":\"${env.CURRENT}\"}}}'"
+                            echo "ROLLBACK: traffic restored to ${env.CURRENT}"
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -551,6 +572,20 @@ spec:
                                  reportFiles: 'index.html', keepAll: true, allowMissing: true, alwaysLinkToLastBuild: true]
             // Always tear the stack down, even when tests fail, so the next build starts clean
             sh "docker compose ${E2E_COMPOSE} down -v || true"
+            // Lab 10 notification: result, branch and build URL. NOTIFY_EMAIL and the SMTP server
+            // (Mailpit on the jenkins network, inbox at http://localhost:8025) are Jenkins settings,
+            // so no address or password lives in this file. A mail outage must not fail the build.
+            script {
+                def result = currentBuild.currentResult
+                try {
+                    mail to: env.NOTIFY_EMAIL,
+                         subject: "${result}: ${env.JOB_NAME} [${env.BRANCH_NAME}] #${env.BUILD_NUMBER}",
+                         body: "${env.APP_NAME} build #${env.BUILD_NUMBER} on branch ${env.BRANCH_NAME}: ${result}\n\n" +
+                               "Build: ${env.BUILD_URL}\nConsole: ${env.BUILD_URL}console\n"
+                } catch (err) {
+                    echo "Notification not sent: ${err.message}"
+                }
+            }
         }
     }
 }

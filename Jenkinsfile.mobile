@@ -1,5 +1,6 @@
 // taskflow-mobile (PetPaws Flutter app) pipeline, Lab 10.
-// Runs entirely on an ephemeral Kubernetes pod in the kind cluster (Lab 09 cloud "kind").
+// Runs entirely on an ephemeral Kubernetes pod in the kind cluster (Lab 09 cloud "kind"),
+// except the Health Gate, which needs the Prometheus on the jenkins Docker network.
 // Jenkins job: multibranch "taskflow-mobile", Script Path = Jenkinsfile.mobile
 pipeline {
     agent {
@@ -70,6 +71,23 @@ spec:
                 archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/app-debug.apk', fingerprint: true
             }
         }
+        stage('Pipeline Health Gate') {
+            // Same gate as the API (ci/health-gate.mjs): no release while under 90% of this job's
+            // last 20 builds succeeded. Runs on linux-build because the kind pods cannot reach the
+            // Prometheus on the jenkins Docker network; the stage checks out the repo there itself.
+            when {
+                beforeAgent true
+                anyOf { branch 'main'; branch pattern: 'demo/.*', comparator: 'REGEXP' }
+            }
+            agent { docker { image 'node:24-alpine'; label 'linux-build'; args '--network jenkins' } }
+            environment {
+                PROMETHEUS_URL = 'http://prometheus:9090'
+                MIN_SUCCESS_RATE = '0.9'
+                WINDOW_BUILDS = '20'
+                MIN_HISTORY = "${env.BRANCH_NAME == 'main' ? '5' : '1'}"
+            }
+            steps { sh 'node ci/health-gate.mjs' }
+        }
         stage('Build Signed Release AAB') {
             // main only: the keystore never leaves Jenkins credentials and is never used on branches
             when { branch 'main' }
@@ -89,16 +107,21 @@ spec:
     }
 
     post {
-        // Same notification as the API pipeline: branch name and build URL (Gmail SMTP set up in Jenkins)
-        success {
-            mail to: env.NOTIFY_EMAIL, // set once in Manage Jenkins > System > Global properties
-                 subject: "SUCCESS: ${env.JOB_NAME} [${env.BRANCH_NAME}] #${env.BUILD_NUMBER}",
-                 body: "taskflow-mobile passed on branch ${env.BRANCH_NAME}.\n${env.BUILD_URL}"
-        }
-        failure {
-            mail to: env.NOTIFY_EMAIL, // set once in Manage Jenkins > System > Global properties
-                 subject: "FAILED: ${env.JOB_NAME} [${env.BRANCH_NAME}] #${env.BUILD_NUMBER}",
-                 body: "taskflow-mobile failed on branch ${env.BRANCH_NAME}.\n${env.BUILD_URL}console"
+        // Same notification as the API pipeline: result, branch and build URL. NOTIFY_EMAIL and the
+        // SMTP server are Jenkins settings (Mailpit inbox at http://localhost:8025); a mail outage
+        // must not fail the build.
+        always {
+            script {
+                def result = currentBuild.currentResult
+                try {
+                    mail to: env.NOTIFY_EMAIL,
+                         subject: "${result}: ${env.JOB_NAME} [${env.BRANCH_NAME}] #${env.BUILD_NUMBER}",
+                         body: "taskflow-mobile build #${env.BUILD_NUMBER} on branch ${env.BRANCH_NAME}: ${result}\n\n" +
+                               "Build: ${env.BUILD_URL}\nConsole: ${env.BUILD_URL}console\n"
+                } catch (err) {
+                    echo "Notification not sent: ${err.message}"
+                }
+            }
         }
     }
 }
