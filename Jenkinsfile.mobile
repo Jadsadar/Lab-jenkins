@@ -1,6 +1,5 @@
 // taskflow-mobile (PetPaws Flutter app) pipeline, Lab 10.
-// Runs entirely on an ephemeral Kubernetes pod in the kind cluster (Lab 09 cloud "kind"),
-// except the Health Gate, which needs the Prometheus on the jenkins Docker network.
+// Runs entirely on an ephemeral Kubernetes pod in the kind cluster (Lab 09 cloud "kind").
 // Jenkins job: multibranch "taskflow-mobile", Script Path = Jenkinsfile.mobile
 pipeline {
     agent {
@@ -20,6 +19,10 @@ spec:
       requests: { cpu: "1", memory: 3Gi }
   - name: osv
     image: ghcr.io/google/osv-scanner:latest
+    command: ['cat']
+    tty: true
+  - name: node
+    image: node:24-alpine
     command: ['cat']
     tty: true
 '''
@@ -73,20 +76,16 @@ spec:
         }
         stage('Pipeline Health Gate') {
             // Same gate as the API (ci/health-gate.mjs): no release while under 90% of this job's
-            // last 20 builds succeeded. Runs on linux-build because the kind pods cannot reach the
-            // Prometheus on the jenkins Docker network; the stage checks out the repo there itself.
-            when {
-                beforeAgent true
-                anyOf { branch 'main'; branch pattern: 'demo/.*', comparator: 'REGEXP' }
-            }
-            agent { docker { image 'node:24-alpine'; label 'linux-build'; args '--network jenkins' } }
+            // last 20 builds succeeded. Runs in the pod's node container; the kind node resolves the
+            // Prometheus container by name because both sit on the "kind" Docker network.
+            when { anyOf { branch 'main'; branch pattern: 'demo/.*', comparator: 'REGEXP' } }
             environment {
-                PROMETHEUS_URL = 'http://prometheus:9090'
+                PROMETHEUS_URL = 'http://jenkins-monitoring-prometheus-1:9090'
                 MIN_SUCCESS_RATE = '0.9'
                 WINDOW_BUILDS = '20'
                 MIN_HISTORY = "${env.BRANCH_NAME == 'main' ? '5' : '1'}"
             }
-            steps { sh 'node ci/health-gate.mjs' }
+            steps { container('node') { sh 'node ci/health-gate.mjs' } }
         }
         stage('Build Signed Release AAB') {
             // main only: the keystore never leaves Jenkins credentials and is never used on branches

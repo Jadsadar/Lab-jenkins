@@ -2,6 +2,8 @@
 
 เดโมนี้ push โค้ดจริง 3 ครั้ง แต่ละครั้งถูก gate คนละตัวบล็อก แล้วจบด้วยบิลด์ที่ผ่านบน `main`
 
+มีรอบซ้อมที่รันไว้แล้วบน branch `demo/broken-test`, `demo/vulnerable-dep` และ `demo/health-gate` (ดูผลได้ใน job `taskflow-api-multibranch`) ใช้เป็นภาพสำรองได้ถ้าเดโมสดขัดข้อง คำสั่งด้านล่างจึงใช้ชื่อ `demo/live-*` เพื่อไม่ให้ชนกับรอบซ้อม
+
 ## เตรียมก่อนขึ้นเดโม (ทำก่อน 15 นาที)
 
 1. เช็กว่า service ทั้งหมดรันอยู่
@@ -38,31 +40,31 @@
 
 ### เดโม 1: เทสต์พัง (Quality gate)
 ```powershell
-git checkout -b demo/broken-test main
+git checkout -b demo/live-broken-test main
 # แก้ backend/api/src/pets/pet-mappers.spec.ts บรรทัดแรกของ expect ให้ผิด เช่น 'male' เป็น 'female'
 git commit -am "demo: break a unit test"
-git push -u origin demo/broken-test
+git push -u origin demo/live-broken-test
 ```
 พูดระหว่างรอ: webhook สั่งบิลด์ทันที ทุก check ที่ไม่ขึ้นต่อกันรันพร้อมกัน พอเทสต์พัง `failFast` หยุดตัวที่เหลือ บิลด์จึงไม่ไปถึง Build Image หรือ Deploy
 
 ### เดโม 2: ช่องโหว่ critical (Security gate)
 ```powershell
-git checkout -b demo/vulnerable-dep main
+git checkout -b demo/live-vulnerable-dep main
 cd backend/api
 npm install minimist@0.0.8 --save-dev
 cd ../..
 git commit -am "demo: add minimist 0.0.8 (critical prototype pollution CVE)"
-git push -u origin demo/vulnerable-dep
+git push -u origin demo/live-vulnerable-dep
 ```
 ชี้ให้ดู 2 จุด: สเตจ `SCA - npm audit` ขึ้น `Blocking: N critical vulnerabilities found` และ `Policy Gate` ขึ้น `Blocked: N critical vulnerabilities found by npm audit` เป็น 2 ด่านอิสระ ถ้าด่านหนึ่งตั้งค่าผิด อีกด่านยังบล็อกอยู่
 
 ### เดโม 3: Pipeline Health Gate
 branch `demo/*` รัน Health Gate โดยใช้ประวัติขั้นต่ำ 1 บิลด์ (บน `main` ใช้ 5)
 ```powershell
-git checkout -b demo/health-gate main
+git checkout -b demo/live-health-gate main
 # ทำเทสต์พังแบบเดโม 1 แล้ว push: บิลด์แรกของ job นี้ล้มเหลว
 git commit -am "demo: failing build lowers the success rate"
-git push -u origin demo/health-gate
+git push -u origin demo/live-health-gate
 # รอบิลด์จบ แล้วแก้เทสต์กลับ
 git revert --no-edit HEAD
 git push
@@ -78,7 +80,7 @@ Health gate BLOCKED: 0/1 of the last builds succeeded = 0.0% (threshold 90%)
 - เปิดบิลด์สีเขียวของ `main`: API ที่ผ่าน Health Gate, กด Approval แล้ว deploy แบบ Blue/Green และ mobile ที่มี `app-release.aab` ใน Build Artifacts
 - ลบ branch เดโมหลังจบ
   ```powershell
-  git push origin --delete demo/broken-test demo/vulnerable-dep demo/health-gate
+  git push origin --delete demo/live-broken-test demo/live-vulnerable-dep demo/live-health-gate
   ```
 
 ## ถ้าเดโมติดขัด
