@@ -4,11 +4,22 @@ pipeline {
     // executor is never asked for twice (which would deadlock the build).
     agent { label 'linux-build' }
 
+    parameters {
+        // SonarQube, its Quality Gate and E2E are the slowest stages (~5 min together).
+        // They always run on main, develop and pull requests; on other branches only when
+        // this box is ticked (Build with Parameters), so feature-branch pushes get feedback faster.
+        booleanParam(name: 'FULL_CHECKS', defaultValue: false,
+                     description: 'Also run SonarQube, Quality Gate and E2E on this branch')
+    }
+
     environment {
         APP_NAME = 'taskflow-api'
         NODE_ENV = 'test'
         NPM_CONFIG_CACHE = '/tmp/.npm'
         E2E_COMPOSE = '-f backend/docker-compose.e2e.yml -p petpaws-e2e'
+        // Terraform providers (~100 MB for aws) are downloaded once into the tf-plugins volume
+        // that every terraform container mounts, instead of on each init
+        TF_PLUGIN_CACHE_DIR = '/tf-plugins'
     }
 
     options {
@@ -51,10 +62,12 @@ pipeline {
             // Static analysis before the build; both tools are independent, so they run in parallel
             parallel {
                 stage('ESLint Security') {
-                    agent { docker { image 'node:24-alpine'; reuseNode true } }
+                    // npm-cache volume: packages are downloaded once and reused by every npm ci
+                    agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
                     steps {
                         dir('backend/api') {
-                            sh 'npm ci'
+                            // --no-audit: the SCA stage runs npm audit once, no need on every install
+                            sh 'npm ci --prefer-offline --no-audit --no-fund'
                             // Rules come from eslint.config.js; errors fail the stage, warnings are reported only
                             sh 'npx eslint --plugin security src/'
                         }
@@ -80,7 +93,7 @@ pipeline {
         }
         stage('SCA - npm audit') {
             // Dependency scan before the build. Policy: critical blocks, high only warns.
-            agent { docker { image 'node:24-alpine'; reuseNode true } }
+            agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
             steps {
                 dir('backend/api') {
                     // npm audit exits non-zero whenever it finds anything, so ignore its exit code
@@ -119,12 +132,12 @@ pipeline {
             }
         }
         stage('Build & Test') {
-            agent { docker { image 'node:24-alpine'; reuseNode true } }
+            agent { docker { image 'node:24-alpine'; args '-v npm-cache:/tmp/.npm'; reuseNode true } }
             stages {
                 stage('Install') {
                     steps {
                         echo "App: ${env.APP_NAME}, Env: ${env.NODE_ENV}"
-                        dir('backend/api') { sh 'npm ci' }
+                        dir('backend/api') { sh 'npm ci --prefer-offline --no-audit --no-fund' }
                     }
                 }
                 stage('Lint') {
@@ -196,6 +209,10 @@ pipeline {
         stage('SonarQube Analysis') {
             // Scanner 5.0 matches the SonarQube 9.9 LTS server; settings live in
             // backend/api/sonar-project.properties
+            when {
+                beforeAgent true // decide before starting the scanner container, so a skip costs nothing
+                anyOf { branch 'main'; branch 'develop'; changeRequest(); expression { params.FULL_CHECKS } }
+            }
             agent { docker { image 'sonarsource/sonar-scanner-cli:5.0'; reuseNode true } }
             steps {
                 withSonarQubeEnv('SonarQube') {
@@ -205,6 +222,10 @@ pipeline {
             }
         }
         stage('Quality Gate') {
+            // Same condition as SonarQube Analysis: there is no result to wait for otherwise
+            when {
+                anyOf { branch 'main'; branch 'develop'; changeRequest(); expression { params.FULL_CHECKS } }
+            }
             steps {
                 // Waits for SonarQube's webhook; fails the build if the gate fails
                 timeout(time: 5, unit: 'MINUTES') {
@@ -213,6 +234,9 @@ pipeline {
             }
         }
         stage('E2E') {
+            when {
+                anyOf { branch 'main'; branch 'develop'; changeRequest(); expression { params.FULL_CHECKS } }
+            }
             stages {
                 stage('E2E: Start Stack') {
                     // Runs on linux-build itself (it has the docker CLI); --wait blocks
@@ -312,7 +336,8 @@ pipeline {
             // Offline checks only: -backend=false skips the S3 state, so no LocalStack needed here
             parallel {
                 stage('Terraform Validate') {
-                    agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint=""'; reuseNode true } }
+                    // tf-plugins volume = TF_PLUGIN_CACHE_DIR: the aws provider is downloaded once, not per init
+                    agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" -v tf-plugins:/tf-plugins'; reuseNode true } }
                     steps {
                         dir('infra/terraform') {
                             sh 'terraform init -backend=false'
@@ -354,9 +379,28 @@ pipeline {
                 }
             }
         }
+        stage('State Bucket') {
+            // LocalStack's free edition keeps everything in memory, so a restart wipes the state
+            // bucket. Recreate it (versioned) if missing; on real S3 this bucket would simply exist.
+            agent { docker { image 'amazon/aws-cli:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'localstack-aws',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh '''
+                        export AWS_DEFAULT_REGION=us-east-1
+                        S3="aws --endpoint-url http://localstack:4566 s3api"
+                        $S3 head-bucket --bucket taskflow-tfstate 2>/dev/null || {
+                            $S3 create-bucket --bucket taskflow-tfstate
+                            $S3 put-bucket-versioning --bucket taskflow-tfstate --versioning-configuration Status=Enabled
+                        }
+                    '''
+                }
+            }
+        }
         stage('Terraform Plan') {
             // --network lab08: reach LocalStack (EC2 API and the S3 state bucket) at localstack:4566
-            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
                                                   usernameVariable: 'AWS_ACCESS_KEY_ID',
@@ -395,7 +439,7 @@ pipeline {
             }
         }
         stage('Terraform Apply') {
-            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" --network lab08 -v tf-plugins:/tf-plugins'; reuseNode true } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'localstack-aws',
                                                   usernameVariable: 'AWS_ACCESS_KEY_ID',
@@ -409,6 +453,30 @@ pipeline {
                     }
                 }
             }
+        }
+        stage('Configure with Ansible') {
+            agent { docker { image 'alpine/ansible:latest'; args '--entrypoint="" --network lab08'; reuseNode true } }
+            environment {
+                // LocalStack's free EC2 is a mock with no machine behind its IP, so SSH goes to the
+                // stand-in host (infra/lab-host). Remove this line when targeting real AWS.
+                TARGET_HOST_OVERRIDE = 'taskflow-vm'
+                // Set here, not only in ansible.cfg: Ansible ignores a cfg in a world-writable directory.
+                // The host is recreated on every apply, so its SSH host key changes each time.
+                ANSIBLE_HOST_KEY_CHECKING = 'False'
+            }
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'lab08-ssh-key',
+                                                   keyFileVariable: 'ANSIBLE_SSH_KEY',
+                                                   usernameVariable: 'ANSIBLE_SSH_USER')]) {
+                    // Dynamic inventory from `terraform output`, then the playbook; IMAGE is the
+                    // taskflow-api tag the Build Image stage pushed
+                    sh '''
+                        python3 infra/ansible/inventory_from_tf.py infra/terraform/tf-outputs.json inventory.ini
+                        cd infra/ansible && ansible-playbook -i ../../inventory.ini playbook.yml
+                    '''
+                }
+            }
+            post { always { archiveArtifacts artifacts: 'inventory.ini', allowEmptyArchive: true } }
         }
         stage('Deploy Staging') {
             when { branch 'develop' }
