@@ -393,7 +393,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                           horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: _getStatusColor(currentStatus)
-                                            .withOpacity(0.15),
+                                            .withValues(alpha: 0.15),
                                         borderRadius:
                                             BorderRadius.circular(20),
                                       ),

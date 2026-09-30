@@ -64,7 +64,7 @@ class PetNetworkImage extends StatelessWidget {
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: iconColor.withOpacity(0.45),
+                      color: iconColor.withValues(alpha: 0.45),
                     ),
                   ),
                 ),

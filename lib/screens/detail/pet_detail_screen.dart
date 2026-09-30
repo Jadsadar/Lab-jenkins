@@ -224,7 +224,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                 color: const Color(0xFFFF9E68), width: 2),
                             shape: BoxShape.circle,
                             color: _isFavorited
-                                ? const Color(0xFFFF9E68).withOpacity(0.1)
+                                ? const Color(0xFFFF9E68).withValues(alpha: 0.1)
                                 : Colors.white,
                           ),
                           child: IconButton(
