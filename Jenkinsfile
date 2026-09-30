@@ -338,6 +338,10 @@ pipeline {
                 stage('Terraform Validate') {
                     // tf-plugins volume = TF_PLUGIN_CACHE_DIR: the aws provider is downloaded once, not per init
                     agent { docker { image 'hashicorp/terraform:1.13'; args '--entrypoint="" -v tf-plugins:/tf-plugins'; reuseNode true } }
+                    // Own data dir: the workspace survives between builds, and its .terraform/ remembers
+                    // the S3 backend from the last Plan stage, which would make even -backend=false ask
+                    // for credentials. A throwaway dir keeps this check offline and credential-free.
+                    environment { TF_DATA_DIR = '/tmp/tf-validate' }
                     steps {
                         dir('infra/terraform') {
                             sh 'terraform init -backend=false'
